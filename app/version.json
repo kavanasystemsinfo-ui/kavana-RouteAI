@@ -1,5 +1,4 @@
 {
   "version": "1.0.0",
-  "apk": "/download/routeai.apk",
-  "notes": "Versión inicial del repartidor (APK Android + PWA)"
+  "notes": "App PWA del repartidor (se descartó el APK Android, ver ADR-001)"
 }
