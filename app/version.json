@@ -1,4 +1,4 @@
 {
   "version": "1.0.0",
-  "notes": "App PWA del repartidor (se descartó el APK Android, ver ADR-001)"
+  "notes": "App web del repartidor (se descartó el APK Android, ver ADR-001)"
 }
