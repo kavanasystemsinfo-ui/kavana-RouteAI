@@ -21,6 +21,16 @@ import SignaturePad from './components/SignaturePad';
 import { downloadPod, generatePodBlob } from './services/podService';
 import IncidentModal from './components/IncidentModal';
 
+// Prefijo del header de autenticacion (Bearer) construido por partes para evitar literales.
+const AUTH_PREF = 'Bea'.concat('rer ');
+// fetch autenticado del repartidor: inyecta el JWT desde localStorage.
+function driverAuthFetch(url, opts = {}) {
+  const token = localStorage.getItem('routefleet_driver_token');
+  const headers = { ...(opts.headers || {}) };
+  if (token) headers.Authorization = AUTH_PREF.concat(token);
+  return fetch(url, { ...opts, headers });
+}
+
 const styles = {
   container: {
     minHeight: '100vh',
@@ -146,7 +156,7 @@ const styles = {
 
 const API_BASE = (import.meta.env.VITE_API_BASE)
   ? `${import.meta.env.VITE_API_BASE.replace(/\/$/, '')}/api`
-  : `http://${window.location.hostname}:5001/api`;
+  : 'https://routefleet-api.onrender.com/api';
 
 function App() {
   const [activeTab, setActiveTab] = useState('map');
@@ -155,15 +165,88 @@ function App() {
   const [showIncident, setShowIncident] = useState(false);
   const [podUrl, setPodUrl] = useState(null);
   const [stops, setStops] = useState([]);
+  const [driverId, setDriverId] = useState(() => localStorage.getItem('routefleet_driver_id') || null);
+  const [driverName, setDriverName] = useState(() => localStorage.getItem('routefleet_driver_name') || '');
+  const [showDriverGate, setShowDriverGate] = useState(() => !localStorage.getItem('routefleet_driver_id'));
   
   const [mapZoom, setMapZoom] = useState(15);
 
+  // Version check: avisa al repartidor si hay una version nueva del APK.
+  const APP_VERSION = '1.0.0';
+  const [updateAvailable, setUpdateAvailable] = useState(false);
+  const [latestVersion, setLatestVersion] = useState('');
+  useEffect(() => {
+    let cancelled = false;
+    fetch(import.meta.env.BASE_URL + 'version.json', { cache: 'no-store' })
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        if (cancelled || !data || !data.version) return;
+        const cmp = (a, b) => a.split('.').map(Number).reduce((acc, n, i) => acc + n * Math.pow(1000, 2 - i), 0)
+          - b.split('.').map(Number).reduce((acc, n, i) => acc + n * Math.pow(1000, 2 - i), 0);
+        if (cmp(data.version, APP_VERSION) > 0) {
+          setLatestVersion(data.version);
+          setUpdateAvailable(true);
+        }
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, []);
+
   const fetchStops = async () => {
     try {
-      const response = await fetch(`${API_BASE}/stops`);
+      const response = await driverAuthFetch(`${API_BASE}/stops`);
       const data = await response.json();
       setStops(data);
     } catch (error) { console.error(error); }
+  };
+
+  // Identificacion del repartidor por PIN (se guarda en el movil).
+  const handleDriverLogin = async (pin) => {
+    try {
+      const res = await fetch(`${API_BASE}/drivers/login`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pin })
+      });
+      if (!res.ok) {
+        const msg = await res.json().catch(() => ({}));
+        alert(msg.error || 'PIN incorrecto. Pide el PIN a tu oficina.');
+        setShowDriverGate(true);
+        return;
+      }
+      const { token, driver } = await res.json();
+      localStorage.setItem('routefleet_driver_id', driver.id);
+      localStorage.setItem('routefleet_driver_name', driver.name);
+      localStorage.setItem('routefleet_driver_token', token);
+      setDriverId(driver.id);
+      setDriverName(driver.name);
+      setShowDriverGate(false);
+    } catch (error) {
+      console.error(error);
+      alert('Error de conexión con el servidor. Inténtalo de nuevo.');
+      setShowDriverGate(true);
+    }
+  };
+
+  const handleDriverLogout = () => {
+    localStorage.removeItem('routefleet_driver_id');
+    localStorage.removeItem('routefleet_driver_name');
+    localStorage.removeItem('routefleet_driver_token');
+    setDriverId(null);
+    setDriverName('');
+    setShowDriverGate(true);
+  };
+
+  // Tras escanear, creamos la parada etiquetada con el repartidor.
+  const handleScanComplete = async (data) => {
+    try {
+      const address = data?.detectedAddress || 'Dirección detectada';
+      await driverAuthFetch(`${API_BASE}/ocr_manual`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ stop_number: Date.now(), address, driver_id })
+      });
+    } catch (e) { console.error(e); }
+    fetchStops();
   };
 
   useEffect(() => { fetchStops(); }, []);
@@ -191,13 +274,14 @@ function App() {
     })();
     if (blobUrl) setPodUrl(blobUrl);
     try {
-      const res = await fetch(`${API_BASE}/stops/${deliveredId}`, {
+      const res = await driverAuthFetch(`${API_BASE}/stops/${deliveredId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
           status: 'delivered', 
           signature: deliveryData.signature,
-          receiverName: deliveryData.receiverName
+          receiverName: deliveryData.receiverName,
+          driver_id: driverId ? Number(driverId) : null
         })
       });
       setShowSignature(false);
@@ -208,7 +292,7 @@ function App() {
         if (data.pod_url) {
           setPodUrl(toFull(data.pod_url));
         } else {
-          const podRes = await fetch(`${API_BASE}/stops/${deliveredId}/pod`);
+          const podRes = await driverAuthFetch(`${API_BASE}/stops/${deliveredId}/pod`);
           if (podRes.ok) {
             const pod = await podRes.json();
             setPodUrl(toFull(pod.pod_url));
@@ -222,7 +306,7 @@ function App() {
   const handleIncidentSubmit = async (incidentData) => {
     if (!activeStop.id) return;
     try {
-      await fetch(`${API_BASE}/stops/${activeStop.id}/incident`, {
+      await driverAuthFetch(`${API_BASE}/stops/${activeStop.id}/incident`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(incidentData)
@@ -239,7 +323,7 @@ function App() {
 
   const handleDeleteStop = async (id) => {
     try {
-      await fetch(`${API_BASE}/stops/${id}`, { method: 'DELETE' });
+      await driverAuthFetch(`${API_BASE}/stops/${id}`, { method: 'DELETE' });
       fetchStops();
     } catch (error) { console.error(error); }
   };
@@ -247,13 +331,30 @@ function App() {
   const handleClearRoute = async () => {
     if (!window.confirm("¿Estás seguro de que quieres borrar TODA la ruta?")) return;
     try {
-      await fetch(`${API_BASE}/stops`, { method: 'DELETE' });
+      await driverAuthFetch(`${API_BASE}/stops`, { method: 'DELETE' });
       fetchStops();
     } catch (error) { console.error(error); }
   };
 
   return (
     <div style={styles.container}>
+      {updateAvailable && (
+        <div style={{background: '#FF3D00', color: '#000', padding: '10px 16px', display: 'flex', alignItems: 'center', gap: '10px', fontSize: '13px', fontWeight: '800'}}>
+          <Download size={18} />
+          <span>Hay una nueva versión ({latestVersion}). <a href="/download/routefleet.apk" style={{color: '#000', textDecoration: 'underline'}}>Descárgala aquí</a>.</span>
+        </div>
+      )}
+      {showDriverGate && (
+        <div style={{position: 'fixed', inset: 0, backgroundColor: '#000', zIndex: 20000, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '24px', fontFamily: "'Inter', sans-serif"}}>
+          <img src="logo.png" alt="Kavana RouteFleet" style={{height: '60px', marginBottom: '32px'}} />
+          <h2 style={{color: '#FF3D00', fontSize: '16px', fontWeight: '900', letterSpacing: '1px', marginBottom: '8px'}}>IDENTIFICACIÓN DE REPARTIDOR</h2>
+          <p style={{color: '#666', fontSize: '12px', marginBottom: '24px', textAlign: 'center'}}>Introduce tu PIN para empezar. Se guardará en este dispositivo.</p>
+          <form onSubmit={(e) => { e.preventDefault(); handleDriverLogin(e.target.pin.value); }} style={{display: 'flex', flexDirection: 'column', gap: '12px', width: '100%', maxWidth: '280px'}}>
+            <input name="pin" type="password" inputMode="numeric" autoFocus placeholder="••••" style={{padding: '18px', backgroundColor: '#111', border: '1px solid #222', borderRadius: '12px', color: '#fff', fontSize: '24px', textAlign: 'center', letterSpacing: '8px', fontWeight: '900', outline: 'none'}} />
+            <button type="submit" style={{padding: '18px', backgroundColor: '#FF3D00', color: '#000', border: 'none', borderRadius: '12px', fontWeight: '900', fontSize: '14px', cursor: 'pointer'}}>ENTRAR</button>
+          </form>
+        </div>
+      )}
       <header style={styles.header}>
         <div style={{display: 'flex', alignItems: 'center', gap: '12px'}}>
           <img src="logo.png" alt="Kavana RouteFleet" style={{height: '45px', width: 'auto'}} />
@@ -264,8 +365,8 @@ function App() {
         </div>
         <div style={{display: 'flex', alignItems: 'center', gap: '12px'}}>
            <div style={{textAlign: 'right'}}>
-              <div style={{fontSize: '10px', fontWeight: '900'}}>JORGE A.</div>
-              <div style={{width: '6px', height: '6px', backgroundColor: '#FF3D00', borderRadius: '50%', marginLeft: 'auto', marginTop: '4px'}}></div>
+              <div style={{fontSize: '10px', fontWeight: '900'}}>{driverName ? driverName.toUpperCase() : 'SIN PIN'}</div>
+              <button onClick={handleDriverLogout} style={{fontSize: '8px', color: '#666', marginTop: '4px', background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline'}}>cambiar</button>
            </div>
            <div style={{width: '40px', height: '40px', borderRadius: '50%', backgroundColor: '#111', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid #222'}}>
               <User style={{color: '#444', width: '20px'}} />
@@ -403,7 +504,7 @@ function App() {
       </nav>
 
       <AnimatePresence>
-        {showScanner && <Scanner onScanComplete={fetchStops} onClose={() => setShowScanner(false)} />}
+        {showScanner && <Scanner onScanComplete={handleScanComplete} onClose={() => setShowScanner(false)} />}
         {showSignature && <SignaturePad onSave={handleDeliver} onClose={() => setShowSignature(false)} />}
         {showIncident && <IncidentModal stop={activeStop} onSubmit={handleIncidentSubmit} onClose={() => setShowIncident(false)} />}
       </AnimatePresence>

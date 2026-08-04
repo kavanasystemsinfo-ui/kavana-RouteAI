@@ -7,6 +7,7 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import dbModule from '../db.js';
+import { signToken, requireAuth } from '../auth.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -33,8 +34,8 @@ export default function apiRouter(db) {
   });
   const upload = multer({ storage });
 
-  // Dashboard metrics (Torre de Control)
-  router.get('/dashboard-data', (req, res) => {
+  // Dashboard metrics (Torre de Control) — solo oficina
+  router.get('/dashboard-data', requireAuth(['office']), (req, res) => {
     try {
       const stops = queries.listStops(db);
       const settings = queries.getSettings(db);
@@ -59,8 +60,8 @@ export default function apiRouter(db) {
     }
   });
 
-  // Obtener configuracion financiera (OPEX)
-  router.get('/settings', (req, res) => {
+  // Obtener configuración financiera — solo oficina
+  router.get('/settings', requireAuth(['office']), (req, res) => {
     try {
       res.json(queries.getSettings(db));
     } catch (error) {
@@ -80,10 +81,83 @@ export default function apiRouter(db) {
     }
   });
 
-  // Obtener todas las paradas
-  router.get('/stops', (req, res) => {
+  // --- Repartidores (drivers) — solo oficina ---
+  router.get('/drivers', requireAuth(['office']), (req, res) => {
     try {
-      res.json(queries.listStops(db));
+      res.json(queries.listDrivers(db));
+    } catch (error) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  router.post('/drivers', requireAuth(['office']), async (req, res) => {
+    try {
+      const { name, pin, phone, email } = req.body;
+      if (!name || !pin) return res.status(400).json({ error: 'name y pin requeridos' });
+      const id = queries.addDriver(db, name, pin, phone || '', email || '');
+      // Enviar email de bienvenida con instrucciones de descarga (SMTP/Resend).
+      // No bloquea la respuesta si el email falla.
+      let emailResult = { sent: false, dev: false };
+      try {
+        const { sendDriverWelcome } = await import('../services/emailService.js');
+        emailResult = await sendDriverWelcome({ name, email: email || '', pin });
+      } catch (mailErr) {
+        console.error('Error enviando email de bienvenida:', mailErr.message);
+      }
+      res.json({ success: true, id, emailSent: emailResult.sent, emailDev: emailResult.dev });
+    } catch (error) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  router.patch('/drivers/:id', requireAuth(['office']), (req, res) => {
+    try {
+      const { active } = req.body;
+      if (active !== undefined) queries.setDriverActive(db, Number(req.params.id), active);
+      res.json({ success: true });
+    } catch (error) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Login de repartidor por PIN -> JWT role driver
+  router.post('/drivers/login', (req, res) => {
+    try {
+      const { pin } = req.body;
+      const drivers = queries.listDrivers(db);
+      const d = drivers.find((x) => String(x.pin) === String(pin) && x.active);
+      if (!d) return res.status(401).json({ error: 'PIN incorrecto' });
+      const token = signToken({ role: 'driver', driverId: d.id });
+      res.json({ success: true, token, driver: { id: d.id, name: d.name } });
+    } catch (error) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Login de oficina (PIN único de empresa) -> JWT role office
+  router.post('/office/login', (req, res) => {
+    try {
+      const { pin } = req.body;
+      const officePin = process.env.OFFICE_PIN || '0000';
+      if (pin !== officePin) return res.status(401).json({ error: 'PIN incorrecto' });
+      const token = signToken({ role: 'office' });
+      res.json({ success: true, token });
+    } catch (error) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Obtener todas las paradas (con filtros) — solo oficina
+  router.get('/stops', requireAuth(['office', 'driver']), (req, res) => {
+    try {
+      const { driver_id, status, from, to } = req.query;
+      const stops = queries.listStops(db, {
+        driver_id: driver_id !== undefined ? Number(driver_id) : undefined,
+        status: status || undefined,
+        from: from || undefined,
+        to: to || undefined
+      });
+      res.json(stops);
     } catch (error) {
       res.status(500).json({ error: error.message });
     }
@@ -100,11 +174,11 @@ export default function apiRouter(db) {
     }
   });
 
-  // Procesar OCR (Manual) -> crea parada
-  router.post('/ocr_manual', (req, res) => {
+  // Procesar OCR (Manual) -> crea parada — solo repartidor autenticado
+  router.post('/ocr_manual', requireAuth(['driver']), (req, res) => {
     try {
-      const { address, stop_number } = req.body;
-      queries.addStop(db, stop_number, address, 'pending');
+      const { address, stop_number, driver_id } = req.body;
+      queries.addStop(db, stop_number, address, 'pending', driver_id ? Number(driver_id) : null);
       res.json({ success: true });
     } catch (error) {
       res.status(500).json({ error: error.message });
@@ -123,8 +197,8 @@ export default function apiRouter(db) {
     }
   });
 
-  // Actualizar estado o firma de una parada
-  router.patch('/stops/:id', async (req, res) => {
+  // Actualizar estado o firma de una parada — solo repartidor autenticado
+  router.patch('/stops/:id', requireAuth(['driver']), async (req, res) => {
     try {
       const { id } = req.params;
       const { status, signature, address, receiverName } = req.body;
@@ -160,8 +234,8 @@ export default function apiRouter(db) {
     }
   });
 
-  // Borrar una parada
-  router.delete('/stops/:id', (req, res) => {
+  // Borrar una parada — solo repartidor autenticado
+  router.delete('/stops/:id', requireAuth(['driver']), (req, res) => {
     try {
       queries.deleteStop(db, Number(req.params.id));
       res.json({ success: true });
@@ -171,7 +245,7 @@ export default function apiRouter(db) {
   });
 
   // Borrar todas las paradas
-  router.delete('/stops', (req, res) => {
+  router.delete('/stops', requireAuth(['driver']), (req, res) => {
     try {
       queries.clearStops(db);
       res.json({ success: true });
@@ -180,8 +254,8 @@ export default function apiRouter(db) {
     }
   });
 
-  // Registrar una incidencia
-  router.post('/stops/:id/incident', (req, res) => {
+  // Registrar una incidencia — solo repartidor autenticado
+  router.post('/stops/:id/incident', requireAuth(['driver']), (req, res) => {
     try {
       const { id } = req.params;
       const { type, photo_data, notes } = req.body;
@@ -193,8 +267,8 @@ export default function apiRouter(db) {
     }
   });
 
-  // Obtener URL del POD de una parada, si existe.
-  router.get('/stops/:id/pod', (req, res) => {
+  // Obtener URL del POD de una parada, si existe. — oficina o repartidor
+  router.get('/stops/:id/pod', requireAuth(['office', 'driver']), (req, res) => {
     try {
       const podsDir = path.join(__dirname, '../../pods');
       const files = fs.existsSync(podsDir)

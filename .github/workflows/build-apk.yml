@@ -1,0 +1,68 @@
+name: Build APK Repartidor (Capacitor)
+
+# Compila la PWA del repartidor como APK Android firmado y lo publica en
+# gh-pages-admin/download/routefleet.apk para descarga directa desde el dominio.
+on:
+  workflow_dispatch:        # Se lanza manualmente cuando quieras una nueva version del APK
+
+permissions:
+  contents: write
+
+jobs:
+  build-apk:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - uses: actions/setup-java@v4
+        with:
+          distribution: 'zulu'
+          java-version: '17'
+
+      - name: Build PWA del repartidor
+        working-directory: client
+        env:
+          VITE_API_BASE: ${{ secrets.VITE_API_BASE }}
+        run: |
+          npm install
+          npm run build
+
+      - name: Capacitor - anadir plataforma Android y sincronizar
+        working-directory: client
+        run: |
+          if [ ! -d "android" ]; then ./node_modules/.bin/cap add android; fi
+          ./node_modules/.bin/cap sync android
+          # Aplica la firma sin modificar el build.gradle original (sobrevive a cap sync)
+          grep -q 'release-signing.gradle' android/app/build.gradle || echo "apply from: 'release-signing.gradle'" >> android/app/build.gradle
+
+      - name: Firmar APK con keystore fijo (secret ANDROID_KEYSTORE_B64)
+        working-directory: client/android
+        env:
+          KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_B64 }}
+          STORE_PASSWORD: ${{ secrets.ANDROID_STORE_PASSWORD }}
+          KEY_ALIAS: routefleet
+        run: |
+          echo "$KEYSTORE_B64" | sed '/-----/d' | base64 -d > app/release-key.jks
+          ./gradlew assembleRelease
+
+      - name: Preparar publicacion (solo el APK)
+        run: |
+          mkdir -p apk-publish
+          cp client/android/app/build/outputs/apk/release/app-release.apk apk-publish/routefleet.apk
+
+      - name: Publicar APK en gh-pages-admin/download (sin tocar panel/app)
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git checkout -- client/android/app/build.gradle
+          git fetch origin gh-pages-admin
+          git checkout -B gh-pages-admin origin/gh-pages-admin
+          mkdir -p download
+          cp client/android/app/build/outputs/apk/release/app-release.apk download/routefleet.apk
+          # Mantiene el custom domain vivo (sin CNAME, GitHub lo borra en cada push)
+          echo "routefleet.kavanasystems.com" > CNAME
+          git add download/routefleet.apk CNAME
+          git commit -m "chore: publicar APK repartidor v${GITHUB_RUN_NUMBER}" || echo "sin cambios"
+          git push origin gh-pages-admin

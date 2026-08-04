@@ -1,38 +1,60 @@
-# 🛡️ KAVANA ROUTEFLEET | Sistema de Logística de Campo
+# KAVANA RouteFleet
 
-**KAVANA** (Propósito/Intención) es la división logística de Kavana Systems diseñada para empresas de reparto y distribución. Un sistema de gestión de campo táctico que prioriza la eficiencia, el control de costes y la trazabilidad ISO 9001.
+Plataforma de gestión de repartos para empresas de reparto. Permite a los
+repartidores escanear albaranes, entregar con firma del cliente (POD) y a las
+oficinas hacer seguimiento de repartos por repartidor, ver firmas y KPIs.
 
-## 🚀 Innovaciones Clave
-- **Identidad Electric Orange:** Interfaz mimetizada en `#FF3D00` para máxima visibilidad en tablets industriales y móviles.
-- **Arquitectura Ubicua:** Torre de Control (Desktop) + App de Operario (Mobile) sincronizadas vía red local.
-- **IA Routing Engine:** Optimización de rutas mediante **DeepSeek v3** vía OpenRouter, con **fallback greedy local** si la API cae (el reparto nunca se detiene).
-- **Kavana Lens:** Motor OCR de albaranes con limpieza semántica de direcciones (filtra símbolos de tabla y términos de envío).
-- **Prueba de Entrega (POD) digital:** firma del receptor + geolocalización generadas en PDF descargable desde el móvil y la Torre de Control.
+## Arquitectura (todo fuera del VPS)
 
-## 🛠️ Stack Tecnológico
-- **Frontend:** React 18 + Vite (estilos inline para estabilidad visual), Vitest + Testing Library (tests).
-- **Backend:** Node.js + Express, SQLite (better-sqlite3), PDFKit (POD).
-- **Calidad:** 21 tests de backend (node:test, integración incluida) + 2 tests de frontend (Vitest). CI en GitHub Actions corre ambos + build.
-- **Iconografía:** Lucide-React. **Animaciones:** Framer Motion.
+| Componente | Donde vive | URL |
+|---|---|---|
+| Backend API (Node/Express, store JSON) | Render | https://routefleet-api.onrender.com |
+| App del repartidor (React PWA) | GitHub Pages (`/app`) | https://routefleet.kavanasystems.com/app |
+| Panel oficinas "Torre de Control" (React) | GitHub Pages (`/`, rama `gh-pages-admin`) | https://routefleet.kavanasystems.com |
 
-## 📱 Acceso Multi-dispositivo
-1. Arranca el backend (`server/`): `npm install && npm start` (puerto 5001).
-2. Sirve el cliente (`client/`): `npm run build` y sirve `dist/`, o `npm run dev`.
-3. En móvil/tablet en la misma red, accede vía la IP del PC (la `API_BASE` se resuelve automáticamente).
+El VPS solo se usa para desarrollo/documentación. Los proyectos terminados
+viven en servicios externos (Render + GitHub Pages), igual que CleanStock.
 
-## 🧪 Tests y CI
+## Estructura del repo
+
+```
+server/            Backend Express + store JSON (sin SQLite)
+  src/db.js              Capa de datos (stops, incidents, drivers, pods)
+  src/routes/api.js      Endpoints REST
+  src/services/          pdfService (POD), ocrService, aiService
+  tests/                 36 tests (node --test) incl. autenticación JWT
+client/            App del repartidor (Vite + React, base /app/)
+client-admin/      Panel de oficinas Torre de Control (Vite + React, base /)
+.github/workflows/ deploy-combined.yml (panel + app en gh-pages-admin)
+```
+
+## Desarrollo rápido
+
 ```bash
 # Backend
-cd server && npm install && npm test
-# Frontend
-cd client && npm install && npm test
+cd server && npm install && npm test         # 36 tests verdes (incl. JWT)
+ROUTEFLEET_DB=/tmp/dev.json PORT=5001 node src/index.js
+
+# App repartidor
+cd client && npm install && npm run dev       # http://localhost:5173
+
+# Panel oficinas
+cd client-admin && npm install && npm run dev  # http://localhost:5173
 ```
-La CI (` .github/workflows/ci.yml`) ejecuta backend (tests), frontend (tests) y build en cada push a `main`.
 
-## 📦 Estructura
-- `/client`: App React (operario móvil + Torre de Control desktop).
-- `/server`: API REST, BD SQLite, servicios OCR/IA/PDF y 21 tests.
-- `/docs`: fichas técnicas y manuales.
+## Deploy
 
----
-*KAVANA ROUTEFLEET: Eficiencia en Movimiento.*
+- **Backend**: Render (Web Service, rama `main`, Root `server`, start `node src/index.js`).
+  Variables obligatorias: `JWT_SECRET` (cadena fuerte y aleatoria ≥32 chars — firma
+  los JWT). `OFFICE_PIN` (PIN oficina, def. `0000`), `CORS_ORIGINS` (def. github.io
+  + routefleet.kavanasystems.com). Todos los endpoints exigen JWT (oficina/driver).
+- **Frontends**: un único workflow `deploy-combined.yml` builda app y panel y
+  publica en `gh-pages-admin` (panel en `/`, app en `/app`). Secret repo
+  `VITE_API_BASE=https://routefleet-api.onrender.com`. En Settings → Pages:
+  rama `gh-pages-admin`, custom domain `routefleet.kavanasystems.com`.
+- **DNS**: CNAME `routefleet` → `kavanasystemsinfo-ui.github.io`.
+
+## Documentación
+
+Ver `docs/` (ARQUITECTURA.md, BACKEND.md, APP_REPARTIDOR.md, PANEL_OFICINAS.md,
+DESPLIEGUE.md, API.md).

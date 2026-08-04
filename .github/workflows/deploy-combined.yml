@@ -1,0 +1,58 @@
+name: Deploy Combinado (Torre de Control + App) a GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Build panel de oficinas (Torre de Control)
+        working-directory: client-admin
+        env:
+          VITE_API_BASE: ${{ secrets.VITE_API_BASE }}
+        run: |
+          npm install
+          npm run build
+
+      - name: Build app del repartidor (en /app)
+        working-directory: client
+        env:
+          VITE_API_BASE: ${{ secrets.VITE_API_BASE }}
+        run: |
+          npm install
+          npm run build
+
+      - name: Ensamblar sitio combinado en gh-pages-admin
+        run: |
+          rm -rf gh-pages-admin && mkdir -p gh-pages-admin/app gh-pages-admin/download
+          # Panel en la raiz del dominio
+          cp -r client-admin/dist/* gh-pages-admin/
+          # App del repartidor en /app
+          cp -r client/dist/* gh-pages-admin/app/
+          # Pagina de descarga (APK + PWA iPhone + QR) en /download
+          cp -r client-admin/download/* gh-pages-admin/download/
+          # Preserva el APK ya publicado por build-apk (si existe)
+          if curl -sf -o /tmp/routefleet.apk https://routefleet.kavanasystems.com/download/routefleet.apk; then
+            cp /tmp/routefleet.apk gh-pages-admin/download/routefleet.apk
+          fi
+          # Mantiene el custom domain vivo
+          echo "routefleet.kavanasystems.com" > gh-pages-admin/CNAME
+          touch gh-pages-admin/.nojekyll
+
+      - name: Publicar rama gh-pages-admin
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./gh-pages-admin
+          publish_branch: gh-pages-admin

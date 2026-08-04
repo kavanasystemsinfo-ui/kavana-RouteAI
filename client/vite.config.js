@@ -1,10 +1,9 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 
-// base apunta al subpath del repo en GitHub Pages.
-// En local (npm run dev) Vite lo ignora y sirve desde '/'.
+// La app del repartidor vive en /app/ bajo el dominio de la Torre de Control.
 export default defineConfig({
-  base: '/kavana-RouteFleet/',
+  base: '/app/',
   plugins: [react()],
   server: {
     host: true

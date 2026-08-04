@@ -5,6 +5,7 @@ import apiRouter from './routes/api.js';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import fs from 'fs';
+import { seedDrivers } from './seed.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -13,7 +14,7 @@ const PODS_DIR = path.join(process.cwd(), 'pods');
 
 // Orígenes permitidos (CORS). Por defecto admite la Pages de GitHub y cualquier
 // origen en desarrollo. Ampliable vía env CORS_ORIGINS (separado por comas).
-const ALLOWED = (process.env.CORS_ORIGINS || 'https://kavanasystemsinfo-ui.github.io').split(',').map((s) => s.trim());
+const ALLOWED = (process.env.CORS_ORIGINS || 'https://kavanasystemsinfo-ui.github.io,https://routefleet.kavanasystems.com,https://www.routefleet.kavanasystems.com').split(',').map((s) => s.trim());
 
 export function createServer(db) {
   const app = express();
@@ -42,6 +43,9 @@ export function createServer(db) {
 // Arranque solo si se ejecuta directamente.
 if (import.meta.url === `file://${process.argv[1]}`) {
   const db = dbModule.initDb();
+  // Seed: revive el repartidor por defecto (PIN 5855) si el store arrancó vacío.
+  const seedResult = seedDrivers(db);
+  if (seedResult.created) console.log(`Seed: repartidor creado (id ${seedResult.id}, PIN ${process.env.DEFAULT_DRIVER_PIN || '5855'}).`);
   const app = createServer(db);
   const PORT = process.env.PORT || 5001;
   app.listen(PORT, () => console.log(`KAVANA RouteFleet API en puerto ${PORT}`));

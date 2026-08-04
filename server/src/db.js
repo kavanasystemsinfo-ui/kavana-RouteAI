@@ -14,6 +14,7 @@ function emptyStore() {
   return {
     stops: [],
     incidents: [],
+    drivers: [],
     settings: { cost_per_km: 0.3, cost_per_hour: 15 },
     pods: {}
   };
@@ -54,14 +55,30 @@ export function initDb(dbPath = DEFAULT_DB) {
 }
 
 export const queries = {
-  listStops: (db) => db._store.stops.slice().sort((a, b) => (a.stop_number || 0) - (b.stop_number || 0)),
-  addStop: (db, stopNumber, address, status = 'pending') => {
+  listStops: (db, filters = {}) => {
+    let stops = db._store.stops.slice();
+    if (filters.driver_id !== undefined) {
+      stops = stops.filter((s) => s.driver_id === filters.driver_id);
+    }
+    if (filters.status) {
+      stops = stops.filter((s) => s.status === filters.status);
+    }
+    if (filters.from) {
+      stops = stops.filter((s) => (s.created_at || '') >= filters.from);
+    }
+    if (filters.to) {
+      stops = stops.filter((s) => (s.created_at || '') <= filters.to);
+    }
+    return stops.sort((a, b) => (a.stop_number || 0) - (b.stop_number || 0));
+  },
+  addStop: (db, stopNumber, address, status = 'pending', driverId = null) => {
     const id = db.nextStopId();
     db._store.stops.push({
       id,
       stop_number: stopNumber,
       address,
       status,
+      driver_id: driverId,
       created_at: new Date().toISOString()
     });
     db._save();
@@ -100,6 +117,19 @@ export const queries = {
   savePod: (db, stopId, filePath) => {
     db._store.pods[stopId] = filePath;
     db._save();
+  },
+  // --- Repartidores (drivers) ---
+  addDriver: (db, name, pin, phone = '', email = '') => {
+    const id = (db._store.drivers.reduce((m, d) => Math.max(m, d.id || 0), 0)) + 1;
+    db._store.drivers.push({ id, name, pin: String(pin), phone, email: email || '', active: true });
+    db._save();
+    return id;
+  },
+  listDrivers: (db) => db._store.drivers.slice(),
+  getDriverByPin: (db, pin) => db._store.drivers.find((d) => d.pin === String(pin)),
+  setDriverActive: (db, id, active) => {
+    const d = db._store.drivers.find((x) => x.id === id);
+    if (d) { d.active = active; db._save(); }
   }
 };
 
