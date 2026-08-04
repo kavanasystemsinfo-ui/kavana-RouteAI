@@ -1,60 +1,302 @@
-# KAVANA RouteFleet
+# KAVANA ROUTE AI
 
-Plataforma de gestión de repartos para empresas de reparto. Permite a los
-repartidores escanear albaranes, entregar con firma del cliente (POD) y a las
-oficinas hacer seguimiento de repartos por repartidor, ver firmas y KPIs.
+> **Plataforma SaaS de optimización inteligente de rutas de reparto mediante IA, diseñada para reducir costes operativos, mejorar la productividad de los conductores y ofrecer visibilidad completa de las operaciones de última milla.**
 
-## Arquitectura (todo fuera del VPS)
+![React](https://img.shields.io/badge/React-19-61DAFB?logo=react)
+![Node.js](https://img.shields.io/badge/Node.js-22-339933?logo=node.js)
+![Express](https://img.shields.io/badge/Express-API-lightgrey)
+![PWA](https://img.shields.io/badge/PWA-Offline-blueviolet)
+![AI](https://img.shields.io/badge/AI-Route%20Optimization-8A2BE2)
+![Tests](https://img.shields.io/badge/Tests-40-success)
+![License](https://img.shields.io/badge/License-MIT-success)
 
-| Componente | Donde vive | URL |
-|---|---|---|
-| Backend API (Node/Express, store JSON) | Render | https://routefleet-api.onrender.com |
-| App del repartidor (React PWA) | GitHub Pages (`/app`) | https://routefleet.kavanasystems.com/app |
-| Panel oficinas "Torre de Control" (React) | GitHub Pages (`/`, rama `gh-pages-admin`) | https://routefleet.kavanasystems.com |
+---
 
-El VPS solo se usa para desarrollo/documentación. Los proyectos terminados
-viven en servicios externos (Render + GitHub Pages), igual que CleanStock.
+# Visión General
 
-## Estructura del repo
+**KAVANA Route AI** es una plataforma SaaS para la gestión inteligente de operaciones de reparto de última milla.
+
+Su objetivo principal es ayudar a las empresas a optimizar sus rutas mediante algoritmos de planificación y asistencia basada en IA, reduciendo kilómetros recorridos, tiempos de entrega y costes operativos.
+
+La plataforma combina planificación inteligente, seguimiento operativo y captura digital de evidencias de entrega desde una única solución.
+
+Forma parte del ecosistema **Kavana Systems**, orientado al desarrollo de software empresarial moderno.
+
+---
+
+# Problema
+
+Las empresas de distribución afrontan diariamente desafíos que afectan directamente a su rentabilidad:
+
+- Rutas poco eficientes.
+- Kilómetros innecesarios.
+- Consumo elevado de combustible.
+- Baja productividad de los conductores.
+- Escasa visibilidad sobre el estado de las entregas.
+- Procesos administrativos manuales.
+- Dificultad para localizar evidencias de entrega.
+
+La ausencia de herramientas inteligentes provoca mayores costes operativos y una planificación menos eficiente.
+
+---
+
+# Solución
+
+KAVANA Route AI digitaliza el ciclo completo de reparto combinando inteligencia artificial y herramientas operativas.
+
+La plataforma proporciona:
+
+- Optimización inteligente de rutas.
+- Asistencia al conductor durante la jornada.
+- Dashboard para supervisión en tiempo real.
+- Captura digital de entregas (POD).
+- Firma electrónica del cliente.
+- OCR de documentación.
+- Geolocalización de entregas.
+- Funcionamiento Offline-First.
+- API REST para integraciones.
+
+---
+
+# Arquitectura
 
 ```
-server/            Backend Express + store JSON (sin SQLite)
-  src/db.js              Capa de datos (stops, incidents, drivers, pods)
-  src/routes/api.js      Endpoints REST
-  src/services/          pdfService (POD), ocrService, aiService
-  tests/                 36 tests (node --test) incl. autenticación JWT
-client/            App del repartidor (Vite + React, base /app/)
-client-admin/      Panel de oficinas Torre de Control (Vite + React, base /)
-.github/workflows/ deploy-combined.yml (panel + app en gh-pages-admin)
+             IA
+
+              │
+
+      Motor de Optimización
+
+              │
+
+────────────────────────────────────
+
+ Conductores             Supervisores
+
+       │                      │
+
+ Progressive Web App     Torre de Control
+
+        ╲                  ╱
+
+        REST API (Express)
+
+               │
+
+JWT Authentication + Business Logic
+
+               │
+
+OCR · POD · Geolocalización
+
+               │
+
+ Persistencia de Datos
 ```
 
-## Desarrollo rápido
+La plataforma separa completamente la operación en movilidad del panel de supervisión, compartiendo una única API responsable de la autenticación, la lógica de negocio y la sincronización de toda la información.
+
+---
+
+# Stack Tecnológico
+
+### Frontend
+
+- React
+- Vite
+- TypeScript
+- Progressive Web App (PWA)
+
+### Backend
+
+- Node.js
+- Express
+
+### Inteligencia Artificial
+
+- Algoritmos de optimización de rutas
+- Motor de planificación
+- Preparado para integración con modelos LLM
+
+### Automatización
+
+- OCR mediante Tesseract.js
+- Captura de firma digital
+- Geolocalización
+
+### Infraestructura
+
+- Render
+- GitHub Pages
+
+### Seguridad
+
+- JWT Authentication
+- Role Based Access Control (RBAC)
+
+---
+
+# Funcionalidades
+
+### Optimización Inteligente
+
+- Optimización automática de rutas.
+- Asistencia al conductor.
+- Reducción de kilómetros recorridos.
+- Mejora de la planificación diaria.
+
+### Operación
+
+- Gestión de repartidores.
+- Dashboard operativo.
+- Estado de entregas en tiempo real.
+- Histórico completo.
+
+### Evidencias
+
+- Firma digital (POD).
+- OCR de albaranes.
+- Geolocalización.
+- Registro de incidencias.
+
+### Plataforma
+
+- Progressive Web App.
+- API REST.
+- Arquitectura desacoplada.
+- Operación Offline-First.
+
+---
+
+# Decisiones de Ingeniería
+
+| Decisión | Solución adoptada | Motivo |
+|----------|-------------------|--------|
+| Aplicación móvil | Progressive Web App | Instalación inmediata y funcionamiento offline |
+| OCR | Tesseract.js | Procesamiento local sin servicios externos |
+| Firma digital | HTML5 Canvas | Ligero y sin dependencias |
+| Backend | Express | Arquitectura simple y mantenible |
+| Infraestructura | Render + GitHub Pages | Bajo mantenimiento |
+
+Las decisiones arquitectónicas completas están documentadas mediante ADRs en:
+
+```
+docs/adr/
+```
+
+---
+
+# Estado del Proyecto
+
+| Funcionalidad | Estado |
+|--------------|:------:|
+| Optimización de rutas | ✅ |
+| Dashboard operativo | ✅ |
+| Captura POD | ✅ |
+| Firma digital | ✅ |
+| OCR | ✅ |
+| Offline-First | ✅ |
+| API REST | ✅ |
+| Tests automatizados | ✅ |
+| Replanificación dinámica mediante IA | 🚧 |
+| Predicción de incidencias | 🚧 |
+| Analítica avanzada | 🚧 |
+
+---
+
+# Documentación
+
+| Documento | Descripción |
+|-----------|-------------|
+| `docs/adr/` | Architecture Decision Records |
+| `docs/technical/` | Documentación técnica |
+| `docs/HISTORY.md` | Evolución del proyecto |
+| `docs/METRICS.md` | Métricas de calidad |
+| `docs/SECURITY.md` | Consideraciones de seguridad |
+
+---
+
+# Ejecución Local
 
 ```bash
 # Backend
-cd server && npm install && npm test         # 36 tests verdes (incl. JWT)
-ROUTEFLEET_DB=/tmp/dev.json PORT=5001 node src/index.js
+cd server
+npm install
+npm start
 
-# App repartidor
-cd client && npm install && npm run dev       # http://localhost:5173
+# Aplicación PWA
+cd client
+npm install
+npm run dev
 
-# Panel oficinas
-cd client-admin && npm install && npm run dev  # http://localhost:5173
+# Dashboard
+cd client-admin
+npm install
+npm run dev
 ```
 
-## Deploy
+---
 
-- **Backend**: Render (Web Service, rama `main`, Root `server`, start `node src/index.js`).
-  Variables obligatorias: `JWT_SECRET` (cadena fuerte y aleatoria ≥32 chars — firma
-  los JWT). `OFFICE_PIN` (PIN oficina, def. `0000`), `CORS_ORIGINS` (def. github.io
-  + routefleet.kavanasystems.com). Todos los endpoints exigen JWT (oficina/driver).
-- **Frontends**: un único workflow `deploy-combined.yml` builda app y panel y
-  publica en `gh-pages-admin` (panel en `/`, app en `/app`). Secret repo
-  `VITE_API_BASE=https://routefleet-api.onrender.com`. En Settings → Pages:
-  rama `gh-pages-admin`, custom domain `routefleet.kavanasystems.com`.
-- **DNS**: CNAME `routefleet` → `kavanasystemsinfo-ui.github.io`.
+# Demo
 
-## Documentación
+🌐 **Landing**
 
-Ver `docs/` (ARQUITECTURA.md, BACKEND.md, APP_REPARTIDOR.md, PANEL_OFICINAS.md,
-DESPLIEGUE.md, API.md).
+https://routeai.kavanasystems.com
+
+🚚 **Aplicación**
+
+https://routeai.kavanasystems.com/app
+
+**PIN demostración**
+
+```
+5855
+```
+
+---
+
+# Roadmap
+
+Próximas líneas de evolución:
+
+- Replanificación dinámica basada en tráfico.
+- Balanceo inteligente entre conductores.
+- Predicción automática de retrasos.
+- Estimación dinámica de hora de llegada (ETA).
+- Integración con Google Maps y OpenStreetMap.
+- Evidencia fotográfica.
+- Notificaciones Push.
+- Recomendaciones operativas mediante IA.
+- Analítica predictiva para responsables de operaciones.
+
+---
+
+# Ecosistema Kavana Systems
+
+Este proyecto forma parte del ecosistema **Kavana Systems**, una colección de aplicaciones empresariales desarrolladas siguiendo el **Kavana Engineering Standard (KES)**.
+
+- Manufacturing (MES)
+- Warehouse (WMS)
+- Route AI (AI Delivery Platform)
+
+Todos los proyectos comparten la misma filosofía de arquitectura, documentación y calidad de ingeniería.
+
+---
+
+# Aviso
+
+Este proyecto forma parte de mi portfolio profesional y tiene como objetivo demostrar conocimientos de arquitectura de software, desarrollo full stack e integración de inteligencia artificial aplicada a la optimización de procesos empresariales.
+
+No representa un producto comercial implantado en clientes reales.
+
+---
+
+# Autor
+
+Desarrollado por **Jorge Adán Rodríguez**
+
+**Founder · Kavana Systems**
+
+Software Architect · Full Stack Developer · AI Product Engineer
+
+🌐 https://www.kavanasystems.com

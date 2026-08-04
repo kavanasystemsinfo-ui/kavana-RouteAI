@@ -11,7 +11,7 @@ export function generatePodBlob(stop, signature, geo = null) {
   const W = doc.internal.pageSize.getWidth();
 
   doc.setFontSize(20);
-  doc.text('KAVANA RouteFleet', W / 2, 50, { align: 'center' });
+  doc.text('KAVANA Route AI', W / 2, 50, { align: 'center' });
   doc.setFontSize(12);
   doc.text('Proof of Delivery (POD)', W / 2, 70, { align: 'center' });
 

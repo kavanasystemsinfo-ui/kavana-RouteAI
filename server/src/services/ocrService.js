@@ -46,9 +46,9 @@ function isBinaryFile(path) {
 // Extraer texto de PDF usando pdftotext (poppler-utils)
 async function extractPdfText(pdfPath) {
   try {
-    // Usar pdftotext para extraer texto correctamente
-    const { execSync } = await import('child_process');
-    const text = execSync(`pdftotext -layout "${pdfPath}" -`, { 
+    // Usar execFileSync con array de args (evita inyección por shell)
+    const { execFileSync } = await import('child_process');
+    const text = execFileSync('pdftotext', ['-layout', pdfPath, '-'], { 
       encoding: 'utf8',
       timeout: 10000,
       maxBuffer: 1024 * 1024

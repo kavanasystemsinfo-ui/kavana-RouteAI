@@ -25,7 +25,7 @@ import IncidentModal from './components/IncidentModal';
 const AUTH_PREF = 'Bea'.concat('rer ');
 // fetch autenticado del repartidor: inyecta el JWT desde localStorage.
 function driverAuthFetch(url, opts = {}) {
-  const token = localStorage.getItem('routefleet_driver_token');
+  const token = localStorage.getItem('routeai_driver_token');
   const headers = { ...(opts.headers || {}) };
   if (token) headers.Authorization = AUTH_PREF.concat(token);
   return fetch(url, { ...opts, headers });
@@ -72,7 +72,7 @@ const styles = {
     gap: '20px'
   },
   stopNumber: {
-    color: '#FF3D00',
+    color: '#f8cd00',
     fontSize: '64px',
     fontWeight: '900',
     fontStyle: 'italic',
@@ -98,7 +98,7 @@ const styles = {
     justifyContent: 'center'
   },
   btnPrimary: {
-    backgroundColor: '#FF3D00',
+    backgroundColor: '#f8cd00',
     color: '#000',
     width: '100%',
     padding: '20px',
@@ -129,7 +129,7 @@ const styles = {
     border: '1px solid #1a1a1a'
   },
   checkIcon: {
-    backgroundColor: '#FF3D00',
+    backgroundColor: '#f8cd00',
     borderRadius: '4px',
     width: '24px',
     height: '24px',
@@ -156,7 +156,7 @@ const styles = {
 
 const API_BASE = (import.meta.env.VITE_API_BASE)
   ? `${import.meta.env.VITE_API_BASE.replace(/\/$/, '')}/api`
-  : 'https://routefleet-api.onrender.com/api';
+  : 'https://routeai-api.onrender.com/api';
 
 function App() {
   const [activeTab, setActiveTab] = useState('map');
@@ -165,11 +165,16 @@ function App() {
   const [showIncident, setShowIncident] = useState(false);
   const [podUrl, setPodUrl] = useState(null);
   const [stops, setStops] = useState([]);
-  const [driverId, setDriverId] = useState(() => localStorage.getItem('routefleet_driver_id') || null);
-  const [driverName, setDriverName] = useState(() => localStorage.getItem('routefleet_driver_name') || '');
-  const [showDriverGate, setShowDriverGate] = useState(() => !localStorage.getItem('routefleet_driver_id'));
+  const [driverId, setDriverId] = useState(() => localStorage.getItem('routeai_driver_id') || null);
+  const [driverName, setDriverName] = useState(() => localStorage.getItem('routeai_driver_name') || '');
+  const [showDriverGate, setShowDriverGate] = useState(() => !localStorage.getItem('routeai_driver_id'));
   
   const [mapZoom, setMapZoom] = useState(15);
+
+  // Origen de salida configurable (no GPS en vivo): el repartidor lo fija
+  // cuando recibe el albarán, aunque sea el día antes. Persiste en localStorage.
+  const [originText, setOriginText] = useState(() => localStorage.getItem('routeai_origin') || '');
+  const [optimizing, setOptimizing] = useState(false);
 
   // Version check: avisa al repartidor si hay una version nueva del APK.
   const APP_VERSION = '1.0.0';
@@ -194,11 +199,18 @@ function App() {
 
   const fetchStops = async () => {
     try {
-      const response = await driverAuthFetch(`${API_BASE}/stops`);
+      const did = localStorage.getItem('routeai_driver_id');
+      const url = did ? `${API_BASE}/stops?driver_id=${did}` : `${API_BASE}/stops`;
+      const response = await driverAuthFetch(url);
       const data = await response.json();
-      setStops(data);
+      if (Array.isArray(data)) setStops(data);
     } catch (error) { console.error(error); }
   };
+
+  // Refrescar paradas al cambiar de driver (login/logout) - solo si hay token
+  useEffect(() => { 
+    if (localStorage.getItem('routeai_driver_token')) fetchStops(); 
+  }, [driverId]);
 
   // Identificacion del repartidor por PIN (se guarda en el movil).
   const handleDriverLogin = async (pin) => {
@@ -214,9 +226,9 @@ function App() {
         return;
       }
       const { token, driver } = await res.json();
-      localStorage.setItem('routefleet_driver_id', driver.id);
-      localStorage.setItem('routefleet_driver_name', driver.name);
-      localStorage.setItem('routefleet_driver_token', token);
+      localStorage.setItem('routeai_driver_id', driver.id);
+      localStorage.setItem('routeai_driver_name', driver.name);
+      localStorage.setItem('routeai_driver_token', token);
       setDriverId(driver.id);
       setDriverName(driver.name);
       setShowDriverGate(false);
@@ -228,9 +240,9 @@ function App() {
   };
 
   const handleDriverLogout = () => {
-    localStorage.removeItem('routefleet_driver_id');
-    localStorage.removeItem('routefleet_driver_name');
-    localStorage.removeItem('routefleet_driver_token');
+    localStorage.removeItem('routeai_driver_id');
+    localStorage.removeItem('routeai_driver_name');
+    localStorage.removeItem('routeai_driver_token');
     setDriverId(null);
     setDriverName('');
     setShowDriverGate(true);
@@ -259,9 +271,7 @@ function App() {
     fetchStops();
   };
 
-  useEffect(() => { fetchStops(); }, []);
-
-  const activeStop = stops.find(s => s.status === 'pending') || stops[0] || null;
+  const activeStop = Array.isArray(stops) ? (stops.find(s => s.status === 'pending') || stops[0] || null) : null;
 
   const handleDeliver = async (deliveryData) => {
     if (!activeStop.id) return;
@@ -342,31 +352,86 @@ function App() {
     } catch (error) { console.error(error); }
   };
 
+  const handleOptimize = async () => {
+    try {
+      if (!originText.trim()) {
+        alert('Primero indica tu ORIGEN DE SALIDA arriba (ej. "Almacén Kavana, Valencia").');
+        return;
+      }
+      if (stops.length < 2) {
+        alert('Necesitas al menos 2 paradas para optimizar.');
+        return;
+      }
+      setOptimizing(true);
+      const res = await driverAuthFetch(`${API_BASE}/optimize`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          origin: { text: originText },
+          stops: stops.map((s) => ({ id: s.id, address: s.address }))
+        })
+      });
+      const data = await res.json();
+      if (data.success) {
+        const engineLabel = data.engine === 'ai' ? 'IA' : 'Algoritmo local';
+        let msg = `Ruta optimizada con ${engineLabel}. Orden guardado en el servidor.`;
+        if (data.unlocated && data.unlocated.length > 0) {
+          msg += `\n\n${data.unlocated.length} dirección(es) no se pudieron geocodificar y se dejaron al final.`;
+        }
+        alert(msg);
+        fetchStops();
+      } else {
+        alert(data.error || 'Error al optimizar');
+      }
+    } catch (error) {
+      console.error(error);
+      alert('Error de conexión al optimizar');
+    } finally {
+      setOptimizing(false);
+    }
+  };
+
+  // Abre Google Maps para que el repartidor elija su punto de salida y lo copie.
+  const openOriginPicker = () => {
+    window.open('https://www.google.com/maps/search/?api=1&query=valencia', '_blank');
+  };
+
+  // Guarda el origen de salida (persiste en localStorage).
+  const handleOriginChange = (e) => {
+    const val = e.target.value;
+    setOriginText(val);
+    localStorage.setItem('routeai_origin', val);
+  };
+
   return (
     <div style={styles.container}>
       {updateAvailable && (
-        <div style={{background: '#FF3D00', color: '#000', padding: '10px 16px', display: 'flex', alignItems: 'center', gap: '10px', fontSize: '13px', fontWeight: '800'}}>
+        <div style={{background: '#f8cd00', color: '#000', padding: '10px 16px', display: 'flex', alignItems: 'center', gap: '10px', fontSize: '13px', fontWeight: '800'}}>
           <Download size={18} />
-          <span>Hay una nueva versión ({latestVersion}). <a href="/download/routefleet.apk" style={{color: '#000', textDecoration: 'underline'}}>Descárgala aquí</a>.</span>
+          <span>Hay una nueva versión ({latestVersion}). <a href="/download/routeai.apk" style={{color: '#000', textDecoration: 'underline'}}>Descárgala aquí</a>.</span>
         </div>
       )}
       {showDriverGate && (
         <div style={{position: 'fixed', inset: 0, backgroundColor: '#000', zIndex: 20000, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '24px', fontFamily: "'Inter', sans-serif"}}>
-          <img src="logo.png" alt="Kavana RouteFleet" style={{height: '60px', marginBottom: '32px'}} />
-          <h2 style={{color: '#FF3D00', fontSize: '16px', fontWeight: '900', letterSpacing: '1px', marginBottom: '8px'}}>IDENTIFICACIÓN DE REPARTIDOR</h2>
+          <img src="logo.png" alt="Kavana Route AI" style={{height: '80px', marginBottom: '16px', objectFit: 'contain'}} />
+          <div style={{textAlign: 'center', marginBottom: '32px'}}>
+            <div style={{fontWeight: '900', fontSize: '22px', letterSpacing: '-1px', color: '#f8cd00'}}>KAVANA</div>
+            <div style={{fontSize: '10px', color: '#666', fontWeight: '900', letterSpacing: '3px', marginTop: '4px'}}>ROUTE AI</div>
+          </div>
+          <h2 style={{color: '#fff', fontSize: '13px', fontWeight: '900', letterSpacing: '1px', marginBottom: '8px'}}>IDENTIFICACIÓN DE REPARTIDOR</h2>
           <p style={{color: '#666', fontSize: '12px', marginBottom: '24px', textAlign: 'center'}}>Introduce tu PIN para empezar. Se guardará en este dispositivo.</p>
           <form onSubmit={(e) => { e.preventDefault(); handleDriverLogin(e.target.pin.value); }} style={{display: 'flex', flexDirection: 'column', gap: '12px', width: '100%', maxWidth: '280px'}}>
             <input name="pin" type="password" inputMode="numeric" autoFocus placeholder="••••" style={{padding: '18px', backgroundColor: '#111', border: '1px solid #222', borderRadius: '12px', color: '#fff', fontSize: '24px', textAlign: 'center', letterSpacing: '8px', fontWeight: '900', outline: 'none'}} />
-            <button type="submit" style={{padding: '18px', backgroundColor: '#FF3D00', color: '#000', border: 'none', borderRadius: '12px', fontWeight: '900', fontSize: '14px', cursor: 'pointer'}}>ENTRAR</button>
+            <button type="submit" style={{padding: '18px', backgroundColor: '#f8cd00', color: '#000', border: 'none', borderRadius: '12px', fontWeight: '900', fontSize: '14px', cursor: 'pointer'}}>ENTRAR</button>
           </form>
         </div>
       )}
       <header style={styles.header}>
         <div style={{display: 'flex', alignItems: 'center', gap: '12px'}}>
-          <img src="logo.png" alt="Kavana RouteFleet" style={{height: '45px', width: 'auto'}} />
+          <img src="logo.png" alt="Kavana Route AI" style={{height: '45px', width: 'auto'}} />
           <div>
             <div style={{...styles.brand, fontSize: '18px'}}>KAVANA</div>
-            <div style={{fontSize: '8px', color: '#666', fontWeight: '900', letterSpacing: '2px'}}>ROUTEFLEET</div>
+            <div style={{fontSize: '8px', color: '#666', fontWeight: '900', letterSpacing: '2px'}}>ROUTE AI</div>
           </div>
         </div>
         <div style={{display: 'flex', alignItems: 'center', gap: '12px'}}>
@@ -414,13 +479,13 @@ function App() {
                 <div style={{position: 'absolute', right: '16px', bottom: '60px', display: 'flex', flexDirection: 'column', gap: '8px'}}>
                   <button onClick={() => setMapZoom(prev => Math.min(prev + 1, 20))} style={{width: '36px', height: '36px', borderRadius: '50%', backgroundColor: '#222', border: '1px solid #444', color: '#fff', fontWeight: 'bold', fontSize: '18px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center'}}>+</button>
                   <button onClick={() => setMapZoom(prev => Math.max(prev - 1, 1))} style={{width: '36px', height: '36px', borderRadius: '50%', backgroundColor: '#222', border: '1px solid #444', color: '#fff', fontWeight: 'bold', fontSize: '18px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center'}}>-</button>
-                  <button onClick={() => setMapZoom(15)} style={{width: '36px', height: '36px', borderRadius: '50%', backgroundColor: '#FF3D00', border: 'none', color: '#000', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer'}}>
+                  <button onClick={() => setMapZoom(15)} style={{width: '36px', height: '36px', borderRadius: '50%', backgroundColor: '#f8cd00', border: 'none', color: '#000', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer'}}>
                     <RefreshCcw style={{width: '16px'}} />
                   </button>
                 </div>
 
-                <div style={{position: 'absolute', bottom: '16px', left: '16px', backgroundColor: 'rgba(0,0,0,0.85)', padding: '8px 16px', borderRadius: '20px', border: '1px solid #FF3D0033', display: 'flex', alignItems: 'center', gap: '8px', backdropFilter: 'blur(5px)', pointerEvents: 'none'}}>
-                  <Clock style={{color: '#FF3D00', width: '12px'}} />
+                <div style={{position: 'absolute', bottom: '16px', left: '16px', backgroundColor: 'rgba(0,0,0,0.85)', padding: '8px 16px', borderRadius: '20px', border: '1px solid #f8cd0033', display: 'flex', alignItems: 'center', gap: '8px', backdropFilter: 'blur(5px)', pointerEvents: 'none'}}>
+                  <Clock style={{color: '#f8cd00', width: '12px'}} />
                   <span style={{fontSize: '10px', fontWeight: '900', letterSpacing: '1px'}}>ZOOM: {mapZoom}x</span>
                 </div>
               </div>
@@ -455,7 +520,7 @@ function App() {
 
         {podUrl && (
           <div style={{padding: '0 24px 24px'}}>
-            <a href={podUrl} target="_blank" rel="noreferrer" style={{...styles.btnPrimary, width: '100%', justifyContent: 'center', marginTop: '12px', backgroundColor: '#FF3D00', color: '#000', textDecoration: 'none'}}>
+            <a href={podUrl} target="_blank" rel="noreferrer" style={{...styles.btnPrimary, width: '100%', justifyContent: 'center', marginTop: '12px', backgroundColor: '#f8cd00', color: '#000', textDecoration: 'none'}}>
                DESCARGAR POD (FIRMA) <Download style={{width: '20px'}} />
             </a>
           </div>
@@ -463,16 +528,45 @@ function App() {
 
         {activeTab === 'list' && (
            <div style={{padding: '24px'}} className="animate-fade">
+              {/* ORIGEN DE SALIDA + OPTIMIZAR */}
+              <div style={{backgroundColor: '#111', border: '1px solid #222', borderRadius: '16px', padding: '16px', marginBottom: '20px'}}>
+                <div style={{...styles.stopLabel, marginBottom: '10px'}}>ORIGEN DE SALIDA</div>
+                <div style={{display: 'flex', gap: '8px'}}>
+                  <input
+                    value={originText}
+                    onChange={handleOriginChange}
+                    placeholder="Ej: Almacén Kavana, Valencia"
+                    style={{flex: 1, padding: '12px 14px', backgroundColor: '#000', border: '1px solid #333', borderRadius: '10px', color: '#fff', fontSize: '13px', fontWeight: '700', outline: 'none'}}
+                  />
+                  <button
+                    onClick={openOriginPicker}
+                    title="Buscar en el mapa"
+                    style={{backgroundColor: '#222', border: '1px solid #333', borderRadius: '10px', color: '#f8cd00', padding: '0 14px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center'}}
+                  >
+                    <Navigation size={18} />
+                  </button>
+                </div>
+                <button
+                  onClick={handleOptimize}
+                  disabled={optimizing}
+                  style={{...styles.btnPrimary, marginTop: '12px', backgroundColor: optimizing ? '#663300' : '#f8cd00', fontSize: '13px', padding: '14px'}}
+                >
+                  {optimizing ? 'OPTIMIZANDO...' : 'OPTIMIZAR RUTA (IA)'}
+                </button>
+              </div>
+
               <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px'}}>
                 <div style={styles.stopLabel}>LISTA DE PARADAS</div>
-                {stops.length > 0 && (
-                  <button 
-                    onClick={handleClearRoute}
-                    style={{backgroundColor: '#ff444420', color: '#ff4444', border: '1px solid #ff444444', padding: '6px 12px', borderRadius: '8px', fontSize: '10px', fontWeight: '900', display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer'}}
-                  >
-                    <Trash2 size={12} /> BORRAR RUTA
-                  </button>
-                )}
+                <div style={{display: 'flex', gap: '8px'}}>
+                  {stops.length > 0 && (
+                    <button 
+                      onClick={handleClearRoute}
+                      style={{backgroundColor: '#ff444420', color: '#ff4444', border: '1px solid #ff444444', padding: '6px 12px', borderRadius: '8px', fontSize: '10px', fontWeight: '900', display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer'}}
+                    >
+                      <Trash2 size={12} /> BORRAR
+                    </button>
+                  )}
+                </div>
               </div>
               {stops.length === 0 ? (
                 <div style={{textAlign: 'center', padding: '40px 20px', color: '#444'}}>
@@ -484,7 +578,7 @@ function App() {
                 stops.map(s => (
                   <div key={s.id} style={{...styles.checkItem, justifyContent: 'space-between'}}>
                      <div style={{display: 'flex', gap: '15px', alignItems: 'center'}}>
-                        <div style={{color: '#FF3D00', fontWeight: '900', fontSize: '20px'}}>#{s.stop_number}</div>
+                        <div style={{color: '#f8cd00', fontWeight: '900', fontSize: '20px'}}>#{s.stop_number}</div>
                         <div style={{fontSize: '13px', fontWeight: '800'}}>{s.address}</div>
                      </div>
                      <button 
@@ -501,11 +595,11 @@ function App() {
       </main>
 
       <nav style={styles.nav}>
-        <button onClick={() => setActiveTab('map')} style={{...styles.navItem, color: activeTab === 'map' ? '#FF3D00' : '#444', background: 'none', border: 'none', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px'}}>
+        <button onClick={() => setActiveTab('map')} style={{...styles.navItem, color: activeTab === 'map' ? '#f8cd00' : '#444', background: 'none', border: 'none', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px'}}>
           <MapPin style={{width: '24px', height: '24px'}} />
           <span style={{fontSize: '8px', fontWeight: '900', textTransform: 'uppercase', letterSpacing: '1px'}}>Mapa</span>
         </button>
-        <button onClick={() => setActiveTab('list')} style={{...styles.navItem, color: activeTab === 'list' ? '#FF3D00' : '#444', background: 'none', border: 'none', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px'}}>
+        <button onClick={() => setActiveTab('list')} style={{...styles.navItem, color: activeTab === 'list' ? '#f8cd00' : '#444', background: 'none', border: 'none', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px'}}>
           <ClipboardList style={{width: '24px', height: '24px'}} />
           <span style={{fontSize: '8px', fontWeight: '900', textTransform: 'uppercase', letterSpacing: '1px'}}>Lista</span>
         </button>

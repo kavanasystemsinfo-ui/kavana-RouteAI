@@ -5,8 +5,8 @@ import { CapacitorConfig } from '@capacitor/core';
 // asi el APK es autonomo y no depende del despliegue de la web.
 // VITE_API_BASE se inyecta en el build del APK via repo secret.
 const config: CapacitorConfig = {
-  appId: 'com.kavanasystems.routefleet',
-  appName: 'RouteFleet',
+  appId: 'com.kavanasystems.routeai',
+  appName: 'Route AI',
   webDir: 'dist',
   server: {
     androidScheme: 'https'

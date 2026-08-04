@@ -1,4 +1,4 @@
-// Firma de release para RouteFleet APK.
+// Firma de release para Route AI APK.
 // Este archivo lo aplica build.gradle (se añade al final tras cap sync).
 // El keystore se decodifica en app/release-key.jks desde ANDROID_KEYSTORE_B64.
 android {
@@ -6,7 +6,7 @@ android {
         release {
             storeFile file("release-key.jks")
             storePassword System.getenv("STORE_PASSWORD")
-            keyAlias "routefleet"
+            keyAlias "routeai"
             keyPassword System.getenv("STORE_PASSWORD")
         }
     }

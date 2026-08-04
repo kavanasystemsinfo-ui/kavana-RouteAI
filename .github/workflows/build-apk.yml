@@ -1,7 +1,7 @@
 name: Build APK Repartidor (Capacitor)
 
 # Compila la PWA del repartidor como APK Android firmado y lo publica en
-# gh-pages-admin/download/routefleet.apk para descarga directa desde el dominio.
+# gh-pages-admin/download/routeai.apk para descarga directa desde el dominio.
 on:
   workflow_dispatch:        # Se lanza manualmente cuando quieras una nueva version del APK
 
@@ -42,7 +42,7 @@ jobs:
         env:
           KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_B64 }}
           STORE_PASSWORD: ${{ secrets.ANDROID_STORE_PASSWORD }}
-          KEY_ALIAS: routefleet
+          KEY_ALIAS: routeai
         run: |
           echo "$KEYSTORE_B64" | sed '/-----/d' | base64 -d > app/release-key.jks
           ./gradlew assembleRelease
@@ -50,7 +50,7 @@ jobs:
       - name: Preparar publicacion (solo el APK)
         run: |
           mkdir -p apk-publish
-          cp client/android/app/build/outputs/apk/release/app-release.apk apk-publish/routefleet.apk
+          cp client/android/app/build/outputs/apk/release/app-release.apk apk-publish/routeai.apk
 
       - name: Publicar APK en gh-pages-admin/download (sin tocar panel/app)
         run: |
@@ -60,9 +60,9 @@ jobs:
           git fetch origin gh-pages-admin
           git checkout -B gh-pages-admin origin/gh-pages-admin
           mkdir -p download
-          cp client/android/app/build/outputs/apk/release/app-release.apk download/routefleet.apk
+          cp client/android/app/build/outputs/apk/release/app-release.apk download/routeai.apk
           # Mantiene el custom domain vivo (sin CNAME, GitHub lo borra en cada push)
-          echo "routefleet.kavanasystems.com" > CNAME
-          git add download/routefleet.apk CNAME
+          echo "routeai.kavanasystems.com" > CNAME
+          git add download/routeai.apk CNAME
           git commit -m "chore: publicar APK repartidor v${GITHUB_RUN_NUMBER}" || echo "sin cambios"
           git push origin gh-pages-admin

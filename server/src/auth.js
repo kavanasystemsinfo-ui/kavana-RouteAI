@@ -2,7 +2,7 @@
 // Robustez desde día 1: los datos y las escrituras quedan protegidos por firma.
 import crypto from 'crypto';
 
-const getSecret = () => process.env.JWT_SECRET || 'routefleet-dev-secret-change-me';
+const getSecret = () => process.env.JWT_SECRET || 'routeai-dev-secret-change-me';
 
 function base64url(input) {
   return Buffer.from(input).toString('base64url');
@@ -72,8 +72,7 @@ export function requireAuth(roles = []) {
       req.user = payload;
       next();
     } catch (e) {
-      const status = /expir/i.test(e.message) ? 401 : 401;
-      res.status(status).json({ error: e.message });
+      res.status(401).json({ error: e.message });
     }
   };
 }

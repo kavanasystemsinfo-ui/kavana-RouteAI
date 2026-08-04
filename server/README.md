@@ -1,6 +1,6 @@
-# KAVANA RouteFleet — Backend (API REST)
+# KAVANA Route AI — Backend (API REST)
 
-Servidor Express que da soporte al cliente de logística de campo: gestión de
+Servidor Express que da soporte a la plataforma de optimización inteligente de rutas: gestión de
 paradas, OCR de albaranes, optimización de rutas (IA con fallback local) y
 generación de POD (Proof of Delivery) en PDF.
 
@@ -9,6 +9,7 @@ generación de POD (Proof of Delivery) en PDF.
 - better-sqlite3 (almacenamiento local)
 - multer (subida de imágenes OCR)
 - pdfkit (generación de POD)
+- pg (PostgreSQL — Neon en producción, JSON fallback en local)
 - Node 20 (`node --test` para tests, sin dependencias extra)
 
 ## Puertos

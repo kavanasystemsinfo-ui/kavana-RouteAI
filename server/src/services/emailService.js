@@ -1,4 +1,4 @@
-// Servicio de email transaccional para KAVANA RouteFleet.
+// Servicio de email transaccional para KAVANA Route AI.
 // Usa Nodemailer con SMTP (agnostico de proveedor). En produccion se apunta
 // a Resend (SMTP_HOST=smtp.resend.com) con dominio verificado propio para no
 // caer en spam. Si no hay credenciales SMTP configuradas, registra el email en
@@ -6,7 +6,7 @@
 import nodemailer from 'nodemailer';
 
 // URL base del producto (donde vive el APK y la PWA).
-const SITE_BASE = process.env.SITE_BASE || 'https://routefleet.kavanasystems.com';
+const SITE_BASE = process.env.SITE_BASE || 'https://routeai.kavanasystems.com';
 
 function buildTransporter() {
   const host = process.env.SMTP_HOST;
@@ -27,7 +27,7 @@ export function buildWelcomeHtml({ name, pin, appUrl, apkUrl, downloadUrl }) {
   return `
   <div style="font-family:system-ui,Segoe UI,Arial,sans-serif;max-width:560px;margin:0 auto;color:#1a2230;">
     <div style="background:#0f1115;padding:22px 26px;border-radius:10px 10px 0 0;">
-      <span style="color:#fff;font-size:20px;font-weight:700;">KAVANA <span style="color:#FF3D00;">RouteFleet</span></span>
+      <span style="color:#fff;font-size:20px;font-weight:700;">KAVANA <span style="color:#FF3D00;">Route AI</span></span>
     </div>
     <div style="background:#f4f6f8;padding:26px;border-radius:0 0 10px 10px;">
       <h2 style="margin:0 0 12px;color:#1a2230;">¡Hola ${name}!</h2>
@@ -65,10 +65,10 @@ export function buildWelcomeHtml({ name, pin, appUrl, apkUrl, downloadUrl }) {
 export async function sendDriverWelcome({ name, email, pin }) {
   if (!email) return { sent: false, dev: false, reason: 'no-email' };
   const appUrl = `${SITE_BASE}/app`;
-  const apkUrl = `${SITE_BASE}/download/routefleet.apk`;
+  const apkUrl = `${SITE_BASE}/download/routeai.apk`;
   const downloadUrl = `${SITE_BASE}/download`;
   const html = buildWelcomeHtml({ name, pin, appUrl, apkUrl, downloadUrl });
-  const from = process.env.SMTP_FROM || process.env.SMTP_USER || 'no-reply@routefleet.kavanasystems.com';
+  const from = process.env.SMTP_FROM || process.env.SMTP_USER || 'no-reply@routeai.kavanasystems.com';
 
   const transporter = buildTransporter();
   if (!transporter) {
@@ -76,9 +76,9 @@ export async function sendDriverWelcome({ name, email, pin }) {
     return { sent: false, dev: true };
   }
   await transporter.sendMail({
-    from: `KAVANA RouteFleet <${from}>`,
+    from: `KAVANA Route AI <${from}>`,
     to: email,
-    subject: 'KAVANA RouteFleet - tu app de reparto esta lista',
+    subject: 'KAVANA Route AI - tu app de reparto esta lista',
     html
   });
   return { sent: true };

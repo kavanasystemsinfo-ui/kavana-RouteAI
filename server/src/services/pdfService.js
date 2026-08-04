@@ -26,7 +26,7 @@ export async function generatePOD(stop, signature, geo = null) {
   const stream = fs.createWriteStream(filePath);
   doc.pipe(stream);
 
-  doc.fontSize(20).text('KAVANA RouteFleet', { align: 'center' });
+  doc.fontSize(20).text('KAVANA Route AI', { align: 'center' });
   doc.fontSize(12).text('Proof of Delivery (POD)', { align: 'center' });
   doc.moveDown();
   doc.fontSize(11).text(`Parada #${stop.id}`);

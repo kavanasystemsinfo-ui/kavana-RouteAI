@@ -1,9 +1,12 @@
 {
-  "name": "kavana-routefleet-server",
+  "name": "kavana-routeai-server",
   "version": "1.0.0",
   "private": true,
   "type": "module",
-  "description": "KAVANA RouteFleet — backend de logística de campo (API REST, store JSON, OCR, IA de rutas, POD)",
+  "description": "KAVANA Route AI — backend de optimización inteligente de rutas (API REST, store JSON, IA, POD)",
+  "engines": {
+    "node": ">=20"
+  },
   "main": "src/index.js",
   "scripts": {
     "start": "node src/index.js",
@@ -15,6 +18,7 @@
     "multer": "^1.4.5-lts.1",
     "nodemailer": "^9.0.3",
     "pdfkit": "^0.15.0",
+    "pg": "^8.22.0",
     "tesseract.js": "^5.1.0"
   }
 }

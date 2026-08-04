@@ -6,6 +6,7 @@ dist
 pods/
 uploads/
 routefleet.json
+routeai.json
 client/dist
 client-admin/dist
 client/node_modules
