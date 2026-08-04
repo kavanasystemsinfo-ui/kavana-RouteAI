@@ -238,3 +238,47 @@ test('emailService construye HTML de bienvenida con enlaces de descarga', async 
   assert.ok(html.includes('4321'), 'debe incluir el PIN');
   assert.ok(html.includes('api.qrserver.com'), 'debe incluir QR');
 });
+
+// --- TESTS TORRE DE CONTROL (2026-07-29) ---
+test('POST /stops/bulk como oficina asigna paradas a un repartidor especifico', async () => {
+  const { server, base, db } = await startServer();
+  try {
+    const drvId = queries.addDriver(db, 'Maria', '9999');
+    queries.setDriverActive(db, drvId, true);
+    const ologin = await fetch(`${base}/api/office/login`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ pin: '0000' }) });
+    const { token: otok } = await ologin.json();
+    const res = await fetch(`${base}/api/stops/bulk`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...authH(otok) },
+      body: JSON.stringify({ addresses: ['Calle Mayor 1, Valencia', 'Ruzafa 25, Valencia'], driver_id: drvId })
+    });
+    assert.equal(res.status, 200);
+    const data = await res.json();
+    assert.equal(data.success, true);
+    assert.equal(data.total, 2);
+    const stops = queries.listStops(db);
+    assert.equal(stops.length, 2);
+    stops.forEach((s) => assert.equal(s.driver_id, drvId));
+  } finally {
+    server.close();
+  }
+});
+
+test('GET /stops?driver_id=X filtra por repartidor (oficina)', async () => {
+  const { server, base, db } = await startServer();
+  try {
+    const drvA = queries.addDriver(db, 'Ana', '1111');
+    const drvB = queries.addDriver(db, 'Luis', '2222');
+    queries.addStop(db, Date.now(), 'Parada Ana 1', 'pending', drvA);
+    queries.addStop(db, Date.now(), 'Parada Ana 2', 'pending', drvA);
+    queries.addStop(db, Date.now(), 'Parada Luis 1', 'pending', drvB);
+    const ologin = await fetch(`${base}/api/office/login`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ pin: '0000' }) });
+    const { token: otok } = await ologin.json();
+    const res = await fetch(`${base}/api/stops?driver_id=${drvA}`, { headers: { ...authH(otok) } });
+    const data = await res.json();
+    assert.equal(data.length, 2);
+    data.forEach((s) => assert.equal(s.driver_id, drvA));
+  } finally {
+    server.close();
+  }
+});

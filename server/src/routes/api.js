@@ -223,8 +223,8 @@ export default function apiRouter(db) {
     }
   });
 
-  // Crear múltiples paradas a la vez (desde OCR de PDF/albarán)
-  router.post('/stops/bulk', requireAuth(['driver']), (req, res) => {
+  // Crear múltiples paradas a la vez (desde OCR de PDF/albarán o envío de oficina a repartidor)
+  router.post('/stops/bulk', requireAuth(['driver', 'office']), (req, res) => {
     try {
       const { addresses, driver_id } = req.body;
       if (!addresses || !Array.isArray(addresses) || addresses.length === 0) {
