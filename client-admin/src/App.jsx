@@ -108,6 +108,25 @@ export default function App() {
 
   const driverName = (id) => (drivers.find(d => d.id === Number(id))?.name) || '—';
 
+  // Formato numérico español: . para miles, , para decimales. Sin decimales si no los tiene.
+  // Manual (no toLocaleString): el locale es-ES omite el punto de miles cuando el
+  // grupo mas alto tiene 1 digito (5314 -> "5314"), y Jorge quiere "5.314".
+  const fmtNum = (v) => {
+    const n = parseFloat(v);
+    if (Number.isNaN(n)) return '—';
+    const [intPart, decPart] = String(n).split('.');
+    const withDots = intPart.replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+    return decPart ? `${withDots},${decPart}` : withDots;
+  };
+  const fmtKm = fmtNum;
+  const fmtEuro = (v) => {
+    const n = parseFloat(v);
+    if (Number.isNaN(n)) return '—';
+    const [intPart, decPart] = n.toFixed(2).split('.');
+    const withDots = intPart.replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+    return `${withDots},${decPart}`;
+  };
+
   const filteredStops = stops.filter(s =>
     (!filterDriver || String(s.driver_id) === String(filterDriver)) &&
     (!filterStatus || s.status === filterStatus) &&
@@ -190,7 +209,7 @@ export default function App() {
           <>
             <h2 style={{marginTop: 0}}>Dashboard</h2>
             <div style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px,1fr))', gap: 16, marginBottom: 24}}>
-              {[['Total', kpi.total, C.text], ['Entregados', kpi.delivered, C.green], ['Pendientes', kpi.pending, C.amber], ['Incidencias', kpi.incidents, C.red], ['OPEX est.', `€${opex}`, C.accent], ['OPEX real', closedSessions.length > 0 ? `€${opexReal}` : '—', closedSessions.length > 0 ? C.green : C.muted]].map(([l, v, c]) => (
+              {[['Total', fmtNum(kpi.total), C.text], ['Entregados', fmtNum(kpi.delivered), C.green], ['Pendientes', fmtNum(kpi.pending), C.amber], ['Incidencias', fmtNum(kpi.incidents), C.red], ['OPEX est.', `€${fmtEuro(opex)}`, C.accent], ['OPEX real', closedSessions.length > 0 ? `€${fmtEuro(opexReal)}` : '—', closedSessions.length > 0 ? C.green : C.muted]].map(([l, v, c]) => (
                 <div key={l} style={{background: C.panel, border: `1px solid ${C.border}`, borderRadius: 12, padding: 18}}>
                   <div style={{fontSize: 12, color: C.muted}}>{l}</div>
                   <div style={{fontSize: 28, fontWeight: 900, color: c}}>{v}</div>
@@ -205,7 +224,7 @@ export default function App() {
                 const pct = ds.length ? Math.round(done / ds.length * 100) : 0;
                 return (
                   <div key={d.id} style={{marginBottom: 12}}>
-                    <div style={{display: 'flex', justifyContent: 'space-between', fontSize: 13}}><span>{d.name}</span><span style={{color: C.muted}}>{done}/{ds.length} ({pct}%)</span></div>
+                    <div style={{display: 'flex', justifyContent: 'space-between', fontSize: 13}}><span>{d.name}</span><span style={{color: C.muted}}>{fmtNum(done)}/{fmtNum(ds.length)} ({pct}%)</span></div>
                     <div style={{height: 8, background: C.panel2, borderRadius: 4, marginTop: 4, overflow: 'hidden'}}>
                       <div style={{height: '100%', width: `${pct}%`, background: C.green}} />
                     </div>
@@ -277,10 +296,10 @@ export default function App() {
                   <tr key={s.id} style={{borderTop: `1px solid ${C.border}`}}>
                     <td style={td}>{driver?.name || '—'}</td>
                     <td style={td}>{(s.started_at || '').slice(0, 16).replace('T', ' ')}</td>
-                    <td style={td}>{s.km_initial} km</td>
-                    <td style={td}>{s.km_final} km</td>
-                    <td style={td}><strong>{s.km_total} km</strong></td>
-                    <td style={td}>€{(parseFloat(s.km_total || 0) * costKm).toFixed(2)} {driver?.fuel_type ? '' : '(default)'}</td>
+                    <td style={td}>{fmtKm(s.km_initial)} km</td>
+                    <td style={td}>{fmtKm(s.km_final)} km</td>
+                    <td style={td}><strong>{fmtKm(s.km_total)} km</strong></td>
+                    <td style={td}>€{fmtEuro(parseFloat(s.km_total || 0) * costKm)} {driver?.fuel_type ? '' : '(default)'}</td>
                   </tr>
                   );
                 })}
@@ -444,7 +463,7 @@ function StopsSection({ API_BASE, token, stops, drivers, driverName, filterDrive
                   )}
                 </td>
                 <td style={td}>
-                  {s.items ? (() => { try { const items = JSON.parse(s.items).filter(i => i.checked); return items.length > 0 ? `${items.length} bultos` : '—'; } catch { return '—'; } })() : '—'}
+                  {s.items ? (() => { try { const items = JSON.parse(s.items).filter(i => i.checked); return items.length > 0 ? `${fmtNum(items.length)} bultos` : '—'; } catch { return '—'; } })() : '—'}
                 </td>
                 <td style={td}>
                   <button onClick={() => handleDelete(s.id)} style={{background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: 14, padding: '4px 8px'}} title="Eliminar parada">🗑️</button>

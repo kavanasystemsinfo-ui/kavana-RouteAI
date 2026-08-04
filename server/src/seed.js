@@ -6,7 +6,7 @@ import * as dbModule from './db.js';
 
 export async function seedDrivers(db) {
   const pin = process.env.DEFAULT_DRIVER_PIN || '5855';
-  const name = process.env.DEFAULT_DRIVER_NAME || 'Repartidor KAVANA';
+  const name = process.env.DEFAULT_DRIVER_NAME || 'Raúl Giménez';
   const phone = process.env.DEFAULT_DRIVER_PHONE || '';
   const email = process.env.DEFAULT_DRIVER_EMAIL || '';
 

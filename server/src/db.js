@@ -92,6 +92,9 @@ ALTER TABLE driver_sessions ALTER COLUMN km_total TYPE NUMERIC(10,3);
 // POSTGRESQL adapter
 // ---------------------------------------------------------------------------
 function createPgPool() {
+  // PGSSLMODE=disable permite pruebas locales sin SSL; por defecto SSL activo.
+  const sslEnabled = String(process.env.PGSSLMODE || 'require').toLowerCase() !== 'disable';
+  const ssl = sslEnabled ? { rejectUnauthorized: false } : false;
   // Prioridad 1: Variables individuales PGHOST/PGUSER/PGPASSWORD
   const host = process.env.PGHOST;
   if (host) {
@@ -101,7 +104,7 @@ function createPgPool() {
       user: process.env.PGUSER || 'neondb_owner',
       password: process.env.PGPASSWORD,
       database: process.env.PGDATABASE || 'neondb',
-      ssl: { rejectUnauthorized: false },
+      ssl,
       family: 4
     });
   }
@@ -110,7 +113,7 @@ function createPgPool() {
   if (url) {
     return new pg.Pool({ 
       connectionString: url, 
-      ssl: { rejectUnauthorized: false },
+      ssl,
       family: 4
     });
   }
