@@ -29,7 +29,7 @@ services:
       - key: PGSSLMODE
         value: require
       - key: JWT_SECRET
-        generateValue: true
+        value: "c672f0687a0cd7915f0e958e4f0219a735512af10d5a925a5c5c394e2ae8eab4"  # fija: los deploys ya no invalidan sesiones (antes generateValue)
       - key: OFFICE_PIN
         value: "0000"  # CAMBIAR en producción
       - key: CORS_ORIGINS

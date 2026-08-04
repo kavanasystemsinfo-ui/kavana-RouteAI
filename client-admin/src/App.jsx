@@ -36,7 +36,15 @@ function authFetch(url, opts = {}) {
   const token = sessionStorage.getItem('rf_office_token');
   const headers = { ...(opts.headers || {}) };
   if (token) headers.Authorization = AUTH_PREF.concat(token);
-  return fetch(url, { ...opts, headers });
+  return fetch(url, { ...opts, headers }).then((res) => {
+    // Token inválido/expirado (p.ej. deploy de Render con JWT_SECRET regenerado):
+    // limpiar sesión y volver al login en vez de romper el panel con un objeto de error.
+    if (res.status === 401) {
+      sessionStorage.removeItem('rf_office_token');
+      window.dispatchEvent(new Event('auth:unauthorized'));
+    }
+    return res;
+  });
 }
 
 // Etiqueta de visitante de la demo: persiste en localStorage.
@@ -106,6 +114,9 @@ export default function App() {
       if (from) qs.set('from', from);
       if (to) qs.set('to', to);
       const q = qs.toString() ? `?${qs.toString()}` : '';
+      // Blindaje: si un endpoint devuelve un objeto de error en vez de array
+      // (500/401), normalizar a [] para que ningún .filter() del render explote.
+      const asArray = (x) => Array.isArray(x) ? x : [];
       const [d, s, i, set, sess] = await Promise.all([
         authFetch(`${API_BASE}/drivers`).then(r => r.json()),
         authFetch(`${API_BASE}/stops${q}`).then(r => r.json()),
@@ -113,10 +124,19 @@ export default function App() {
         authFetch(`${API_BASE}/settings`).then(r => r.json()),
         authFetch(`${API_BASE}/driver/sessions${q}`).then(r => r.json())
       ]);
-      setDrivers(d); setStops(s); setIncidents(i); setSettings(set); setSessions(sess);
+      setDrivers(asArray(d)); setStops(asArray(s)); setIncidents(asArray(i));
+      setSettings(typeof set === 'object' && set !== null ? set : {});
+      setSessions(asArray(sess));
     } catch (e) { console.error(e); }
     setLoading(false);
   }, [from, to]);
+
+  // Si un endpoint devuelve 401 (token inválido tras redeploy), cerrar sesión limpia.
+  useEffect(() => {
+    const onUnauthorized = () => { setToken(''); setLogged(false); };
+    window.addEventListener('auth:unauthorized', onUnauthorized);
+    return () => window.removeEventListener('auth:unauthorized', onUnauthorized);
+  }, []);
 
   // Si hay token guardado, entrar directo.
   useEffect(() => { if (token) setLogged(true); }, []);
