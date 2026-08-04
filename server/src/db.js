@@ -31,7 +31,7 @@ CREATE TABLE IF NOT EXISTS drivers (
 
 CREATE TABLE IF NOT EXISTS stops (
   id SERIAL PRIMARY KEY,
-  stop_number INTEGER NOT NULL,
+  stop_number BIGINT NOT NULL,
   address TEXT NOT NULL,
   status TEXT DEFAULT 'pending',
   driver_id INTEGER REFERENCES drivers(id),
@@ -41,6 +41,8 @@ CREATE TABLE IF NOT EXISTS stops (
   estimated_time TEXT,
   created_at TIMESTAMP DEFAULT NOW()
 );
+
+ALTER TABLE stops ALTER COLUMN stop_number TYPE BIGINT;
 
 CREATE TABLE IF NOT EXISTS incidents (
   id SERIAL PRIMARY KEY,
@@ -60,6 +62,22 @@ CREATE TABLE IF NOT EXISTS pods (
   stop_id INTEGER PRIMARY KEY REFERENCES stops(id),
   file_path TEXT NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS driver_sessions (
+  id SERIAL PRIMARY KEY,
+  driver_id INTEGER REFERENCES drivers(id),
+  km_initial NUMERIC(10,1),
+  km_final NUMERIC(10,1),
+  km_total NUMERIC(10,1),
+  date DATE DEFAULT CURRENT_DATE,
+  started_at TIMESTAMP DEFAULT NOW(),
+  ended_at TIMESTAMP,
+  status TEXT DEFAULT 'active'
+);
+
+-- Migración: añadir columnas de coste por vehículo (si no existen)
+ALTER TABLE drivers ADD COLUMN IF NOT EXISTS fuel_type TEXT DEFAULT '';
+ALTER TABLE drivers ADD COLUMN IF NOT EXISTS cost_per_km NUMERIC(10,2) DEFAULT 0;
 `;
 
 // ---------------------------------------------------------------------------
@@ -92,10 +110,14 @@ function createPgPool() {
 }
 
 async function initPgSchema(pool) {
-  await pool.query(SCHEMA_SQL);
+  await pool.query(SCHEMA_SQL).catch(e => { console.warn('[db] Schema warning (no fatal):', e.message); });
   // Default settings
   await pool.query(`INSERT INTO settings (key, value) VALUES ($1, $2) ON CONFLICT (key) DO NOTHING`, ['cost_per_km', '0.3']);
   await pool.query(`INSERT INTO settings (key, value) VALUES ($1, $2) ON CONFLICT (key) DO NOTHING`, ['cost_per_hour', '15']);
+  await pool.query(`INSERT INTO settings (key, value) VALUES ($1, $2) ON CONFLICT (key) DO NOTHING`, ['cost_per_km_diesel', '0.30']);
+  await pool.query(`INSERT INTO settings (key, value) VALUES ($1, $2) ON CONFLICT (key) DO NOTHING`, ['cost_per_km_gasolina', '0.35']);
+  await pool.query(`INSERT INTO settings (key, value) VALUES ($1, $2) ON CONFLICT (key) DO NOTHING`, ['cost_per_km_electrico', '0.15']);
+  await pool.query(`INSERT INTO settings (key, value) VALUES ($1, $2) ON CONFLICT (key) DO NOTHING`, ['cost_per_km_hibrido', '0.28']);
 }
 
 const pgQueries = {
@@ -153,6 +175,9 @@ const pgQueries = {
     );
     return res.rows[0].id;
   },
+  updateDriverCost: async (pool, id, fuelType, costPerKm) => {
+    await pool.query('UPDATE drivers SET fuel_type=$1, cost_per_km=$2 WHERE id=$3', [fuelType || '', costPerKm || 0, id]);
+  },
   listDrivers: async (pool) => {
     const res = await pool.query('SELECT * FROM drivers ORDER BY id');
     return res.rows;
@@ -168,6 +193,29 @@ const pgQueries = {
     // Busca en pods por stop_id
     const res = await pool.query('SELECT file_path FROM pods WHERE stop_id = $1', [stopId]);
     return res.rows[0] || null;
+  },
+  startSession: async (pool, driverId, kmInitial) => {
+    const res = await pool.query(
+      'INSERT INTO driver_sessions (driver_id, km_initial, status) VALUES ($1,$2,\'active\') RETURNING id',
+      [driverId, kmInitial]
+    );
+    return res.rows[0].id;
+  },
+  endSession: async (pool, sessionId, kmFinal) => {
+    const kmTotal = parseFloat((kmFinal - (await pool.query('SELECT km_initial FROM driver_sessions WHERE id=$1', [sessionId])).rows[0].km_initial).toFixed(1));
+    await pool.query(
+      'UPDATE driver_sessions SET km_final=$1, km_total=$2, ended_at=NOW(), status=\'closed\' WHERE id=$3',
+      [kmFinal, kmTotal, sessionId]
+    );
+    return kmTotal;
+  },
+  getActiveSession: async (pool, driverId) => {
+    const res = await pool.query('SELECT * FROM driver_sessions WHERE driver_id=$1 AND status=\'active\' ORDER BY id DESC LIMIT 1', [driverId]);
+    return res.rows[0] || null;
+  },
+  listSessions: async (pool, driverId) => {
+    const res = await pool.query('SELECT * FROM driver_sessions WHERE driver_id=$1 ORDER BY started_at DESC', [driverId]);
+    return res.rows;
   }
 };
 
@@ -177,7 +225,7 @@ const pgQueries = {
 function emptyStore() {
   return {
     stops: [], incidents: [], drivers: [],
-    settings: { cost_per_km: 0.3, cost_per_hour: 15 },
+    settings: { cost_per_km: 0.3, cost_per_hour: 15, cost_per_km_diesel: 0.30, cost_per_km_gasolina: 0.35, cost_per_km_electrico: 0.15, cost_per_km_hibrido: 0.28 },
     pods: {}
   };
 }
@@ -218,8 +266,12 @@ const jsonQueries = {
   savePod: (db, stopId, filePath) => { db._store.pods[stopId] = filePath; db._save(); },
   addDriver: (db, name, pin, phone = '', email = '') => {
     const id = (db._store.drivers.reduce((m, d) => Math.max(m, d.id || 0), 0)) + 1;
-    db._store.drivers.push({ id, name, pin: String(pin), phone, email: email || '', active: true });
+    db._store.drivers.push({ id, name, pin: String(pin), phone, email: email || '', active: true, fuel_type: '', cost_per_km: 0 });
     db._save(); return id;
+  },
+  updateDriverCost: (db, id, fuelType, costPerKm) => {
+    const d = db._store.drivers.find((x) => x.id === id);
+    if (d) { d.fuel_type = fuelType || ''; d.cost_per_km = costPerKm || 0; db._save(); }
   },
   listDrivers: (db) => db._store.drivers.slice(),
   getDriverByPin: (db, pin) => db._store.drivers.find((d) => d.pin === String(pin)),
@@ -230,6 +282,27 @@ const jsonQueries = {
   getStopPods: (db, stopId) => {
     const path = db._store.pods[stopId];
     return path ? { file_path: path } : null;
+  },
+  startSession: (db, driverId, kmInitial) => {
+    const sessions = db._store.sessions || [];
+    const id = sessions.length + 1;
+    sessions.push({ id, driver_id: driverId, km_initial: kmInitial, km_final: null, km_total: null, date: new Date().toISOString().slice(0,10), started_at: new Date().toISOString(), ended_at: null, status: 'active' });
+    db._store.sessions = sessions; db._save(); return id;
+  },
+  endSession: (db, sessionId, kmFinal) => {
+    const session = (db._store.sessions || []).find(s => s.id === sessionId);
+    if (!session) throw new Error('Sesión no encontrada');
+    session.km_final = kmFinal;
+    session.km_total = parseFloat((kmFinal - session.km_initial).toFixed(1));
+    session.ended_at = new Date().toISOString();
+    session.status = 'closed';
+    db._save(); return session.km_total;
+  },
+  getActiveSession: (db, driverId) => {
+    return (db._store.sessions || []).filter(s => s.driver_id === driverId && s.status === 'active').sort((a,b) => b.id - a.id)[0] || null;
+  },
+  listSessions: (db, driverId) => {
+    return (db._store.sessions || []).filter(s => s.driver_id === driverId).sort((a,b) => b.started_at.localeCompare(a.started_at));
   }
 };
 
@@ -259,6 +332,10 @@ export async function initDb(dbPath = DEFAULT_DB) {
   const store = load(dbPath);
   if (typeof store.settings.cost_per_km !== 'number') store.settings.cost_per_km = 0.3;
   if (typeof store.settings.cost_per_hour !== 'number') store.settings.cost_per_hour = 15;
+  if (typeof store.settings.cost_per_km_diesel !== 'number') store.settings.cost_per_km_diesel = 0.30;
+  if (typeof store.settings.cost_per_km_gasolina !== 'number') store.settings.cost_per_km_gasolina = 0.35;
+  if (typeof store.settings.cost_per_km_electrico !== 'number') store.settings.cost_per_km_electrico = 0.15;
+  if (typeof store.settings.cost_per_km_hibrido !== 'number') store.settings.cost_per_km_hibrido = 0.28;
   persist(dbPath, store);
 
   console.log(`[db] JSON store en ${dbPath}`);

@@ -1,8 +1,8 @@
 import express from 'express';
 import { processManifestImage } from '../services/ocrService.js';
-import { optimizeRoute } from '../services/aiService.js';
 import { generatePOD } from '../services/pdfService.js';
 import { geocodeAddress } from '../services/geocode.js';
+import { optimizeRoute } from '../services/routeOptimizer.js';
 import multer from 'multer';
 import fs from 'fs';
 import path from 'path';
@@ -55,12 +55,28 @@ export default function apiRouter(db) {
     catch (error) { res.status(500).json({ error: error.message }); }
   });
 
-  router.put('/settings', async (req, res) => {
+  router.put('/settings', requireAuth(['office']), async (req, res) => {
     try {
-      const { cost_per_km, cost_per_hour } = req.body;
-      if (cost_per_km !== undefined) await q.setSetting(db, 'cost_per_km', cost_per_km);
-      if (cost_per_hour !== undefined) await q.setSetting(db, 'cost_per_hour', cost_per_hour);
+      for (const [key, value] of Object.entries(req.body)) {
+        if (value !== undefined) await q.setSetting(db, key, value);
+      }
       res.json({ success: true });
+    } catch (error) { res.status(500).json({ error: error.message }); }
+  });
+
+  // Sessions (admin) — historial de jornadas de conductores
+  router.get('/driver/sessions', requireAuth(['office']), async (req, res) => {
+    try {
+      const drivers = await q.listDrivers(db);
+      const allSessions = [];
+      for (const d of drivers) {
+        const sessions = await q.listSessions(db, d.id);
+        for (const s of sessions) {
+          allSessions.push({ ...s, driver_name: d.name });
+        }
+      }
+      allSessions.sort((a, b) => new Date(b.started_at) - new Date(a.started_at));
+      res.json(allSessions);
     } catch (error) { res.status(500).json({ error: error.message }); }
   });
 
@@ -86,8 +102,10 @@ export default function apiRouter(db) {
 
   router.patch('/drivers/:id', requireAuth(['office']), async (req, res) => {
     try {
-      const { active } = req.body;
-      if (active !== undefined) await q.setDriverActive(db, Number(req.params.id), active);
+      const { id } = req.params;
+      const { active, fuel_type, cost_per_km } = req.body;
+      if (active !== undefined) await q.setDriverActive(db, Number(id), active);
+      if (fuel_type !== undefined || cost_per_km !== undefined) await q.updateDriverCost(db, Number(id), fuel_type, cost_per_km);
       res.json({ success: true });
     } catch (error) { res.status(500).json({ error: error.message }); }
   });
@@ -101,6 +119,41 @@ export default function apiRouter(db) {
       if (!d) return res.status(401).json({ error: 'PIN incorrecto' });
       const token = signToken({ role: 'driver', driverId: d.id });
       res.json({ success: true, token, driver: { id: d.id, name: d.name } });
+    } catch (error) { res.status(500).json({ error: error.message }); }
+  });
+
+  // Driver session — iniciar jornada (km iniciales)
+  router.post('/driver/session/start', requireAuth(['driver']), async (req, res) => {
+    try {
+      const { km_initial } = req.body;
+      if (!km_initial && km_initial !== 0) return res.status(400).json({ error: 'km_initial requerido' });
+      const driverId = req.user.driverId;
+      // Cerrar sesión activa previa si existe
+      const active = await q.getActiveSession(db, driverId);
+      if (active) await q.endSession(db, active.id, km_initial); // si no cerró, usamos km_initial como final también
+      const id = await q.startSession(db, driverId, parseFloat(km_initial));
+      res.json({ success: true, session_id: id, km_initial: parseFloat(km_initial) });
+    } catch (error) { res.status(500).json({ error: error.message }); }
+  });
+
+  // Driver session — cerrar jornada (km finales)
+  router.post('/driver/session/end', requireAuth(['driver']), async (req, res) => {
+    try {
+      const { km_final } = req.body;
+      if (!km_final && km_final !== 0) return res.status(400).json({ error: 'km_final requerido' });
+      const driverId = req.user.driverId;
+      const active = await q.getActiveSession(db, driverId);
+      if (!active) return res.status(400).json({ error: 'No hay sesión activa' });
+      const km_total = await q.endSession(db, active.id, parseFloat(km_final));
+      res.json({ success: true, session_id: active.id, km_initial: active.km_initial, km_final: parseFloat(km_final), km_total });
+    } catch (error) { res.status(500).json({ error: error.message }); }
+  });
+
+  // Driver session — obtener sesión activa
+  router.get('/driver/session', requireAuth(['driver']), async (req, res) => {
+    try {
+      const session = await q.getActiveSession(db, req.user.driverId);
+      res.json({ success: true, session });
     } catch (error) { res.status(500).json({ error: error.message }); }
   });
 
@@ -145,7 +198,9 @@ export default function apiRouter(db) {
       if (result.raw) {
         const lines = result.raw.split('\n');
         for (const line of lines) {
-          const addr = cleanAddress(line.trim());
+          // Limpiar prefijos tipo "N       " (número de parada + espacios)
+          const cleaned = line.trim().replace(/^\d+\s{2,}/, '');
+          const addr = cleanAddress(cleaned);
           if (addr && addr.length > 5) addresses.push(addr);
         }
       }
@@ -187,7 +242,7 @@ export default function apiRouter(db) {
     } catch (error) { res.status(500).json({ error: error.message }); }
   });
 
-  // Optimize route
+  // Optimize route (algoritmo 2-opt local, sin IA)
   router.post('/optimize', async (req, res) => {
     try {
       const { stops, origin } = req.body;
@@ -201,6 +256,7 @@ export default function apiRouter(db) {
       }
       if (!originCoords) originCoords = { lat: 39.47, lng: -0.38 };
 
+      // Geocodificar todas las paradas
       const geoStops = [];
       for (const s of stopsList) {
         let coord = (typeof s.lat === 'number' && typeof s.lng === 'number')
@@ -208,16 +264,33 @@ export default function apiRouter(db) {
         geoStops.push({ id: s.id, address: s.address, lat: coord?.lat ?? null, lng: coord?.lng ?? null });
       }
       const unlocated = geoStops.filter((s) => s.lat === null);
-      if (unlocated.length > 0) console.warn('Paradas no geocodificadas:', unlocated.map((s) => s.address));
+      const located = geoStops.filter((s) => s.lat !== null);
 
-      const result = await optimizeRoute(geoStops, originCoords);
-      for (let i = 0; i < result.route.length; i++) {
-        await q.updateStop(db, result.route[i].id, { stop_number: i + 1 });
+      let route;
+      if (located.length === 0) {
+        // Sin coordenadas, mantener orden original
+        route = geoStops;
+      } else if (located.length === 1) {
+        route = geoStops;
+      } else if (unlocated.length > 0) {
+        // Optimizar solo las geocodificadas, dejar el resto al final
+        const optimized = optimizeRoute(located, originCoords);
+        route = [...optimized, ...unlocated];
+      } else {
+        route = optimizeRoute(located, originCoords);
       }
+
+      // Guardar orden en base de datos
+      for (let i = 0; i < route.length; i++) {
+        await q.updateStop(db, route[i].id, { stop_number: i + 1 });
+      }
+
       const updated = await q.listStops(db);
       res.json({
-        success: true, engine: result.engine,
-        message: result.engine === 'ai-deepseek' ? 'Ruta optimizada por IA' : 'Ruta optimizada (algoritmo local)',
+        success: true,
+        message: unlocated.length > 0
+          ? `Ruta optimizada (${unlocated.length} dirección(es) sin geocodificar se dejaron al final)`
+          : 'Ruta optimizada',
         stops: updated, unlocated: unlocated.map((s) => s.address)
       });
     } catch (error) { res.status(500).json({ error: 'Error optimizando ruta: ' + error.message }); }

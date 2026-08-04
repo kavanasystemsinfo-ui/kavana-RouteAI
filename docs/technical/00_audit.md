@@ -2,10 +2,10 @@
 
 **Proyecto:** KAVANA Route AI (anteriormente KAVANA Logistics)
 **Division:** Kavana Systems — Logistica de campo para empresas de reparto
-**Fecha:** 2026-07-13
+**Fecha:** 2026-07-29 (última actualización)
 **Autor del informe:** Hermes Agent (perfil jobhunter)
-**Estado:** v1.0 — Backend funcional, 21 tests backend + 2 frontend, CI activa (tests + build)
-**Repositorio:** https://github.com/kavanasystemsinfo-ui/kavana-RouteFleet
+**Estado:** v1.1 — Backend PostgreSQL en producción (Neon + Render), Torre de Control funcional
+**Repositorio:** https://github.com/kavanasystemsinfo-ui/kavana-RouteAI
 
 ---
 

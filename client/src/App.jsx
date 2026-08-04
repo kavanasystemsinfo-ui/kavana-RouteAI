@@ -72,7 +72,7 @@ const styles = {
     gap: '20px'
   },
   stopNumber: {
-    color: '#FF3D00',
+    color: '#f8cd00',
     fontSize: '64px',
     fontWeight: '900',
     fontStyle: 'italic',
@@ -98,7 +98,7 @@ const styles = {
     justifyContent: 'center'
   },
   btnPrimary: {
-    backgroundColor: '#FF3D00',
+    backgroundColor: '#f8cd00',
     color: '#000',
     width: '100%',
     padding: '20px',
@@ -129,7 +129,7 @@ const styles = {
     border: '1px solid #1a1a1a'
   },
   checkIcon: {
-    backgroundColor: '#FF3D00',
+    backgroundColor: '#f8cd00',
     borderRadius: '4px',
     width: '24px',
     height: '24px',
@@ -168,6 +168,13 @@ function App() {
   const [driverId, setDriverId] = useState(() => localStorage.getItem('routeai_driver_id') || null);
   const [driverName, setDriverName] = useState(() => localStorage.getItem('routeai_driver_name') || '');
   const [showDriverGate, setShowDriverGate] = useState(() => !localStorage.getItem('routeai_driver_id'));
+  // Km de jornada
+  const [showKmInitial, setShowKmInitial] = useState(false);
+  const [showKmEnd, setShowKmEnd] = useState(false);
+  const [sessionKmInitial, setSessionKmInitial] = useState(() => localStorage.getItem('routeai_km_initial') || '');
+  const [sessionKmFinal, setSessionKmFinal] = useState('');
+  const [sessionKmTotal, setSessionKmTotal] = useState('');
+  const [sessionId, setSessionId] = useState(() => localStorage.getItem('routeai_session_id') || '');
   
   const [mapZoom, setMapZoom] = useState(15);
 
@@ -199,11 +206,18 @@ function App() {
 
   const fetchStops = async () => {
     try {
-      const response = await driverAuthFetch(`${API_BASE}/stops`);
+      const did = localStorage.getItem('routeai_driver_id');
+      const url = did ? `${API_BASE}/stops?driver_id=${did}` : `${API_BASE}/stops`;
+      const response = await driverAuthFetch(url);
       const data = await response.json();
-      setStops(data);
+      if (Array.isArray(data)) setStops(data);
     } catch (error) { console.error(error); }
   };
+
+  // Refrescar paradas al cambiar de driver (login/logout) - solo si hay token
+  useEffect(() => { 
+    if (localStorage.getItem('routeai_driver_token')) fetchStops(); 
+  }, [driverId]);
 
   // Identificacion del repartidor por PIN (se guarda en el movil).
   const handleDriverLogin = async (pin) => {
@@ -225,6 +239,8 @@ function App() {
       setDriverId(driver.id);
       setDriverName(driver.name);
       setShowDriverGate(false);
+      // Mostrar pantalla de km iniciales
+      setShowKmInitial(true);
     } catch (error) {
       console.error(error);
       alert('Error de conexión con el servidor. Inténtalo de nuevo.');
@@ -233,12 +249,53 @@ function App() {
   };
 
   const handleDriverLogout = () => {
-    localStorage.removeItem('routeai_driver_id');
-    localStorage.removeItem('routeai_driver_name');
-    localStorage.removeItem('routeai_driver_token');
-    setDriverId(null);
-    setDriverName('');
-    setShowDriverGate(true);
+    // Mostrar pantalla de km finales antes de cerrar
+    setSessionKmFinal('');
+    setSessionKmTotal('');
+    setShowKmEnd(true);
+  };
+
+  const confirmKmInitial = async (km) => {
+    try {
+      const res = await driverAuthFetch(`${API_BASE}/driver/session/start`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ km_initial: km })
+      });
+      if (!res.ok) { alert('Error al guardar km iniciales'); return; }
+      const data = await res.json();
+      localStorage.setItem('routeai_km_initial', km);
+      localStorage.setItem('routeai_session_id', String(data.session_id));
+      setSessionKmInitial(km);
+      setSessionId(String(data.session_id));
+      setShowKmInitial(false);
+    } catch (e) { alert('Error de conexión: ' + e.message); }
+  };
+
+  const confirmKmFinal = async (km) => {
+    try {
+      const res = await driverAuthFetch(`${API_BASE}/driver/session/end`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ km_final: km })
+      });
+      if (!res.ok) { alert('Error al guardar km finales'); return; }
+      const data = await res.json();
+      setSessionKmTotal(data.km_total);
+      setSessionKmFinal(km);
+      // Mostrar resumen un momento, luego cerrar sesión
+      setTimeout(() => {
+        localStorage.removeItem('routeai_driver_id');
+        localStorage.removeItem('routeai_driver_name');
+        localStorage.removeItem('routeai_driver_token');
+        localStorage.removeItem('routeai_km_initial');
+        localStorage.removeItem('routeai_session_id');
+        setDriverId(null);
+        setDriverName('');
+        setSessionKmInitial('');
+        setSessionId('');
+        setShowKmEnd(false);
+        setShowDriverGate(true);
+      }, 4000);
+    } catch (e) { alert('Error de conexión: ' + e.message); }
   };
 
   // Tras escanear, creamos las paradas (una o múltiples)
@@ -264,9 +321,7 @@ function App() {
     fetchStops();
   };
 
-  useEffect(() => { fetchStops(); }, []);
-
-  const activeStop = stops.find(s => s.status === 'pending') || stops[0] || null;
+  const activeStop = Array.isArray(stops) ? (stops.find(s => s.status === 'pending') || stops[0] || null) : null;
 
   const handleDeliver = async (deliveryData) => {
     if (!activeStop.id) return;
@@ -368,7 +423,7 @@ function App() {
       });
       const data = await res.json();
       if (data.success) {
-        const engineLabel = data.engine === 'ai-deepseek' ? 'IA (DeepSeek)' : 'Algoritmo local';
+        const engineLabel = data.engine === 'ai' ? 'IA' : 'Algoritmo local';
         let msg = `Ruta optimizada con ${engineLabel}. Orden guardado en el servidor.`;
         if (data.unlocated && data.unlocated.length > 0) {
           msg += `\n\n${data.unlocated.length} dirección(es) no se pudieron geocodificar y se dejaron al final.`;
@@ -401,20 +456,77 @@ function App() {
   return (
     <div style={styles.container}>
       {updateAvailable && (
-        <div style={{background: '#FF3D00', color: '#000', padding: '10px 16px', display: 'flex', alignItems: 'center', gap: '10px', fontSize: '13px', fontWeight: '800'}}>
+        <div style={{background: '#f8cd00', color: '#000', padding: '10px 16px', display: 'flex', alignItems: 'center', gap: '10px', fontSize: '13px', fontWeight: '800'}}>
           <Download size={18} />
           <span>Hay una nueva versión ({latestVersion}). <a href="/download/routeai.apk" style={{color: '#000', textDecoration: 'underline'}}>Descárgala aquí</a>.</span>
         </div>
       )}
       {showDriverGate && (
         <div style={{position: 'fixed', inset: 0, backgroundColor: '#000', zIndex: 20000, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '24px', fontFamily: "'Inter', sans-serif"}}>
-          <img src="logo.png" alt="Kavana Route AI" style={{height: '60px', marginBottom: '32px'}} />
-          <h2 style={{color: '#FF3D00', fontSize: '16px', fontWeight: '900', letterSpacing: '1px', marginBottom: '8px'}}>IDENTIFICACIÓN DE REPARTIDOR</h2>
+          <img src="logo.png" alt="Kavana Route AI" style={{height: '80px', marginBottom: '16px', objectFit: 'contain'}} />
+          <div style={{textAlign: 'center', marginBottom: '32px'}}>
+            <div style={{fontWeight: '900', fontSize: '22px', letterSpacing: '-1px', color: '#f8cd00'}}>KAVANA</div>
+            <div style={{fontSize: '10px', color: '#666', fontWeight: '900', letterSpacing: '3px', marginTop: '4px'}}>ROUTE AI</div>
+          </div>
+          <h2 style={{color: '#fff', fontSize: '13px', fontWeight: '900', letterSpacing: '1px', marginBottom: '8px'}}>IDENTIFICACIÓN DE REPARTIDOR</h2>
           <p style={{color: '#666', fontSize: '12px', marginBottom: '24px', textAlign: 'center'}}>Introduce tu PIN para empezar. Se guardará en este dispositivo.</p>
           <form onSubmit={(e) => { e.preventDefault(); handleDriverLogin(e.target.pin.value); }} style={{display: 'flex', flexDirection: 'column', gap: '12px', width: '100%', maxWidth: '280px'}}>
             <input name="pin" type="password" inputMode="numeric" autoFocus placeholder="••••" style={{padding: '18px', backgroundColor: '#111', border: '1px solid #222', borderRadius: '12px', color: '#fff', fontSize: '24px', textAlign: 'center', letterSpacing: '8px', fontWeight: '900', outline: 'none'}} />
-            <button type="submit" style={{padding: '18px', backgroundColor: '#FF3D00', color: '#000', border: 'none', borderRadius: '12px', fontWeight: '900', fontSize: '14px', cursor: 'pointer'}}>ENTRAR</button>
+            <button type="submit" style={{padding: '18px', backgroundColor: '#f8cd00', color: '#000', border: 'none', borderRadius: '12px', fontWeight: '900', fontSize: '14px', cursor: 'pointer'}}>ENTRAR</button>
           </form>
+        </div>
+      )}
+      {/* Km inicial — obligatorio antes de ver el dashboard */}
+      {showKmInitial && (
+        <div style={{position: 'fixed', inset: 0, backgroundColor: '#000', zIndex: 19000, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '24px', fontFamily: "'Inter', sans-serif"}}>
+          <img src="logo.png" alt="Kavana" style={{height: 60, marginBottom: 16, objectFit: 'contain'}} />
+          <div style={{textAlign: 'center', marginBottom: 20}}>
+            <div style={{fontWeight: 900, fontSize: 18, letterSpacing: '-1px', color: '#f8cd00'}}>KAVANA</div>
+          </div>
+          <h2 style={{color: '#fff', fontSize: 13, fontWeight: 900, letterSpacing: '1px', marginBottom: 8}}>KM INICIALES DE JORNADA</h2>
+          <p style={{color: '#666', fontSize: 12, marginBottom: 20, textAlign: 'center'}}>Introduce los kilómetros actuales de tu vehículo antes de empezar.</p>
+          <form onSubmit={(e) => { e.preventDefault(); confirmKmInitial(e.target.km.value); }} style={{display: 'flex', flexDirection: 'column', gap: 12, width: '100%', maxWidth: 280}}>
+            <input name="km" type="number" step="0.1" inputMode="decimal" autoFocus placeholder="0.0 km" min="0" style={{padding: 18, backgroundColor: '#111', border: '1px solid #222', borderRadius: 12, color: '#fff', fontSize: 24, textAlign: 'center', fontWeight: 900, outline: 'none'}} />
+            <button type="submit" style={{padding: 18, backgroundColor: '#f8cd00', color: '#000', border: 'none', borderRadius: 12, fontWeight: 900, fontSize: 14, cursor: 'pointer'}}>INICIAR JORNADA</button>
+          </form>
+        </div>
+      )}
+      {/* Km final — obligatorio antes de cerrar sesión */}
+      {showKmEnd && (
+        <div style={{position: 'fixed', inset: 0, backgroundColor: '#000', zIndex: 19000, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '24px', fontFamily: "'Inter', sans-serif"}}>
+          <img src="logo.png" alt="Kavana" style={{height: 60, marginBottom: 16, objectFit: 'contain'}} />
+          <div style={{textAlign: 'center', marginBottom: 20}}>
+            <div style={{fontWeight: 900, fontSize: 18, letterSpacing: '-1px', color: '#f8cd00'}}>KAVANA</div>
+          </div>
+          {sessionKmTotal ? (
+            // Resumen final antes de cerrar
+            <div style={{textAlign: 'center'}}>
+              <h2 style={{color: '#22c55e', fontSize: 16, fontWeight: 900, marginBottom: 16}}>✅ JORNADA FINALIZADA</h2>
+              <div style={{backgroundColor: '#111', border: '1px solid #222', borderRadius: 12, padding: 20, marginBottom: 16, textAlign: 'center'}}>
+                <div style={{color: '#666', fontSize: 11, marginBottom: 4}}>KM INICIALES</div>
+                <div style={{color: '#fff', fontSize: 28, fontWeight: 900}}>{sessionKmInitial} km</div>
+                <div style={{color: '#666', fontSize: 11, margin: '12px 0 4px'}}>KM FINALES</div>
+                <div style={{color: '#fff', fontSize: 28, fontWeight: 900}}>{sessionKmFinal} km</div>
+                <div style={{borderTop: '1px solid #222', margin: '12px 0'}} />
+                <div style={{color: '#f8cd00', fontSize: 11, marginBottom: 4}}>TOTAL RECORRIDO</div>
+                <div style={{color: '#f8cd00', fontSize: 36, fontWeight: 900}}>{sessionKmTotal} km</div>
+              </div>
+              <p style={{color: '#666', fontSize: 11}}>Cerrando sesión...</p>
+            </div>
+          ) : (
+            <>
+              <h2 style={{color: '#fff', fontSize: 13, fontWeight: 900, letterSpacing: '1px', marginBottom: 8}}>KM FINALES DE JORNADA</h2>
+              <p style={{color: '#666', fontSize: 12, marginBottom: 8, textAlign: 'center'}}>Introduce los kilómetros finales de tu vehículo.</p>
+              <div style={{backgroundColor: '#111', border: '1px solid #222', borderRadius: 8, padding: '8px 16px', marginBottom: 16, textAlign: 'center'}}>
+                <span style={{color: '#666', fontSize: 11}}>Km inicial: </span>
+                <span style={{color: '#fff', fontWeight: 900, fontSize: 16}}>{sessionKmInitial} km</span>
+              </div>
+              <form onSubmit={(e) => { e.preventDefault(); const v = e.target.km.value; if (parseFloat(v) <= parseFloat(sessionKmInitial)) { alert('Los km finales deben ser mayores que los iniciales'); return; } confirmKmFinal(v); }} style={{display: 'flex', flexDirection: 'column', gap: 12, width: '100%', maxWidth: 280}}>
+                <input name="km" type="number" step="0.1" inputMode="decimal" autoFocus placeholder="0.0 km" min={parseFloat(sessionKmInitial) + 0.1} style={{padding: 18, backgroundColor: '#111', border: '1px solid #222', borderRadius: 12, color: '#fff', fontSize: 24, textAlign: 'center', fontWeight: 900, outline: 'none'}} />
+                <button type="submit" style={{padding: 18, backgroundColor: '#f8cd00', color: '#000', border: 'none', borderRadius: 12, fontWeight: 900, fontSize: 14, cursor: 'pointer'}}>CERRAR JORNADA</button>
+              </form>
+            </>
+          )}
         </div>
       )}
       <header style={styles.header}>
@@ -428,7 +540,8 @@ function App() {
         <div style={{display: 'flex', alignItems: 'center', gap: '12px'}}>
            <div style={{textAlign: 'right'}}>
               <div style={{fontSize: '10px', fontWeight: '900'}}>{driverName ? driverName.toUpperCase() : 'SIN PIN'}</div>
-              <button onClick={handleDriverLogout} style={{fontSize: '8px', color: '#666', marginTop: '4px', background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline'}}>cambiar</button>
+              {sessionKmInitial && <div style={{fontSize: '8px', color: '#666'}}>km inicio: {sessionKmInitial}</div>}
+              <button onClick={handleDriverLogout} style={{fontSize: '8px', color: '#ff4444', marginTop: '4px', background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline'}}>cerrar jornada</button>
            </div>
            <div style={{width: '40px', height: '40px', borderRadius: '50%', backgroundColor: '#111', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid #222'}}>
               <User style={{color: '#444', width: '20px'}} />
@@ -470,13 +583,13 @@ function App() {
                 <div style={{position: 'absolute', right: '16px', bottom: '60px', display: 'flex', flexDirection: 'column', gap: '8px'}}>
                   <button onClick={() => setMapZoom(prev => Math.min(prev + 1, 20))} style={{width: '36px', height: '36px', borderRadius: '50%', backgroundColor: '#222', border: '1px solid #444', color: '#fff', fontWeight: 'bold', fontSize: '18px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center'}}>+</button>
                   <button onClick={() => setMapZoom(prev => Math.max(prev - 1, 1))} style={{width: '36px', height: '36px', borderRadius: '50%', backgroundColor: '#222', border: '1px solid #444', color: '#fff', fontWeight: 'bold', fontSize: '18px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center'}}>-</button>
-                  <button onClick={() => setMapZoom(15)} style={{width: '36px', height: '36px', borderRadius: '50%', backgroundColor: '#FF3D00', border: 'none', color: '#000', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer'}}>
+                  <button onClick={() => setMapZoom(15)} style={{width: '36px', height: '36px', borderRadius: '50%', backgroundColor: '#f8cd00', border: 'none', color: '#000', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer'}}>
                     <RefreshCcw style={{width: '16px'}} />
                   </button>
                 </div>
 
-                <div style={{position: 'absolute', bottom: '16px', left: '16px', backgroundColor: 'rgba(0,0,0,0.85)', padding: '8px 16px', borderRadius: '20px', border: '1px solid #FF3D0033', display: 'flex', alignItems: 'center', gap: '8px', backdropFilter: 'blur(5px)', pointerEvents: 'none'}}>
-                  <Clock style={{color: '#FF3D00', width: '12px'}} />
+                <div style={{position: 'absolute', bottom: '16px', left: '16px', backgroundColor: 'rgba(0,0,0,0.85)', padding: '8px 16px', borderRadius: '20px', border: '1px solid #f8cd0033', display: 'flex', alignItems: 'center', gap: '8px', backdropFilter: 'blur(5px)', pointerEvents: 'none'}}>
+                  <Clock style={{color: '#f8cd00', width: '12px'}} />
                   <span style={{fontSize: '10px', fontWeight: '900', letterSpacing: '1px'}}>ZOOM: {mapZoom}x</span>
                 </div>
               </div>
@@ -511,7 +624,7 @@ function App() {
 
         {podUrl && (
           <div style={{padding: '0 24px 24px'}}>
-            <a href={podUrl} target="_blank" rel="noreferrer" style={{...styles.btnPrimary, width: '100%', justifyContent: 'center', marginTop: '12px', backgroundColor: '#FF3D00', color: '#000', textDecoration: 'none'}}>
+            <a href={podUrl} target="_blank" rel="noreferrer" style={{...styles.btnPrimary, width: '100%', justifyContent: 'center', marginTop: '12px', backgroundColor: '#f8cd00', color: '#000', textDecoration: 'none'}}>
                DESCARGAR POD (FIRMA) <Download style={{width: '20px'}} />
             </a>
           </div>
@@ -532,7 +645,7 @@ function App() {
                   <button
                     onClick={openOriginPicker}
                     title="Buscar en el mapa"
-                    style={{backgroundColor: '#222', border: '1px solid #333', borderRadius: '10px', color: '#FF3D00', padding: '0 14px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center'}}
+                    style={{backgroundColor: '#222', border: '1px solid #333', borderRadius: '10px', color: '#f8cd00', padding: '0 14px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center'}}
                   >
                     <Navigation size={18} />
                   </button>
@@ -540,7 +653,7 @@ function App() {
                 <button
                   onClick={handleOptimize}
                   disabled={optimizing}
-                  style={{...styles.btnPrimary, marginTop: '12px', backgroundColor: optimizing ? '#663300' : '#FF3D00', fontSize: '13px', padding: '14px'}}
+                  style={{...styles.btnPrimary, marginTop: '12px', backgroundColor: optimizing ? '#663300' : '#f8cd00', fontSize: '13px', padding: '14px'}}
                 >
                   {optimizing ? 'OPTIMIZANDO...' : 'OPTIMIZAR RUTA (IA)'}
                 </button>
@@ -569,7 +682,7 @@ function App() {
                 stops.map(s => (
                   <div key={s.id} style={{...styles.checkItem, justifyContent: 'space-between'}}>
                      <div style={{display: 'flex', gap: '15px', alignItems: 'center'}}>
-                        <div style={{color: '#FF3D00', fontWeight: '900', fontSize: '20px'}}>#{s.stop_number}</div>
+                        <div style={{color: '#f8cd00', fontWeight: '900', fontSize: '20px'}}>#{s.stop_number}</div>
                         <div style={{fontSize: '13px', fontWeight: '800'}}>{s.address}</div>
                      </div>
                      <button 
@@ -586,11 +699,11 @@ function App() {
       </main>
 
       <nav style={styles.nav}>
-        <button onClick={() => setActiveTab('map')} style={{...styles.navItem, color: activeTab === 'map' ? '#FF3D00' : '#444', background: 'none', border: 'none', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px'}}>
+        <button onClick={() => setActiveTab('map')} style={{...styles.navItem, color: activeTab === 'map' ? '#f8cd00' : '#444', background: 'none', border: 'none', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px'}}>
           <MapPin style={{width: '24px', height: '24px'}} />
           <span style={{fontSize: '8px', fontWeight: '900', textTransform: 'uppercase', letterSpacing: '1px'}}>Mapa</span>
         </button>
-        <button onClick={() => setActiveTab('list')} style={{...styles.navItem, color: activeTab === 'list' ? '#FF3D00' : '#444', background: 'none', border: 'none', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px'}}>
+        <button onClick={() => setActiveTab('list')} style={{...styles.navItem, color: activeTab === 'list' ? '#f8cd00' : '#444', background: 'none', border: 'none', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px'}}>
           <ClipboardList style={{width: '24px', height: '24px'}} />
           <span style={{fontSize: '8px', fontWeight: '900', textTransform: 'uppercase', letterSpacing: '1px'}}>Lista</span>
         </button>

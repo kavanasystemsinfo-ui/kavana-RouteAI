@@ -47,10 +47,9 @@ const PORT = process.env.PORT || 5001;
     db = await initDb();
   } catch (err) {
     console.error('[db] Error conectando a PostgreSQL, usando JSON fallback:', err.message);
-    // Fallback a JSON store
-    const { default: dbModule } = await import('./db.js');
-    const path = await import('path');
-    const os = await import('os');
+    // Forzar JSON store: eliminar variables PG para que initDb no reintente
+    delete process.env.PGHOST;
+    delete process.env.DATABASE_URL;
     const fallbackPath = path.join(process.cwd(), 'routeai_fallback.json');
     db = await initDb(fallbackPath);
   }

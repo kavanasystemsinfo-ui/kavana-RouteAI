@@ -112,11 +112,15 @@ La plataforma separa completamente la operación en movilidad del panel de super
 - Node.js
 - Express
 
-### Inteligencia Artificial
+### Inteligencia Artificial (asistencia)
 
-- Algoritmos de optimización de rutas
-- Motor de planificación
-- Preparado para integración con modelos LLM
+- Preparado para integración con modelos LLM (consultas, incidencias)
+- OCR mediante Tesseract.js + pdftotext
+
+### Algoritmos
+
+- Optimización de rutas: 2-opt (local, determinista)
+- Planificación de reparto: greedy + 2-opt
 
 ### Automatización
 
@@ -170,19 +174,19 @@ La plataforma separa completamente la operación en movilidad del panel de super
 
 # Decisiones de Ingeniería
 
+Ver [`DECISIONS.md`](./DECISIONS.md) para el registro completo de decisiones técnicas, cambios y su fundamento.
+
+Resumen de decisiones clave:
+
 | Decisión | Solución adoptada | Motivo |
 |----------|-------------------|--------|
+| Optimización de rutas | Algoritmo 2-opt local | Sin coste, instantáneo, siempre disponible. La IA no aportaba mejora significativa |
+| Geocodificación | Nominatim con fallbacks + validación Valencia | Gratuito, ~80% acierto. Google Maps API sería más preciso pero no necesario para MVP |
+| OCR | pdftotext + limpieza de prefijos | Extracción fiable de texto de PDFs con formato tabular |
 | Aplicación móvil | Progressive Web App | Instalación inmediata y funcionamiento offline |
-| OCR | Tesseract.js | Procesamiento local sin servicios externos |
 | Firma digital | HTML5 Canvas | Ligero y sin dependencias |
 | Backend | Express | Arquitectura simple y mantenible |
 | Infraestructura | Render + GitHub Pages | Bajo mantenimiento |
-
-Las decisiones arquitectónicas completas están documentadas mediante ADRs en:
-
-```
-docs/adr/
-```
 
 ---
 

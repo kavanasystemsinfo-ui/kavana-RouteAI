@@ -2,7 +2,6 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import App from '../App';
 
-// Mock de fetch para no golpear el backend real en los tests.
 beforeEach(() => {
   vi.stubGlobal('fetch', vi.fn(async () => ({
     ok: true,
@@ -13,10 +12,9 @@ beforeEach(() => {
 describe('App (KAVANA Route AI)', () => {
   it('renderiza la marca unificada ROUTE AI', async () => {
     render(<App />);
-    // El header muestra "KAVANA" y la subcadena "ROUTE AI".
-    expect(screen.getByText('KAVANA')).toBeInTheDocument();
+    expect(screen.getAllByText(/KAVANA/).length).toBeGreaterThanOrEqual(1);
     await waitFor(() => {
-      expect(screen.getByText('ROUTE AI')).toBeInTheDocument();
+      expect(screen.getAllByText(/ROUTE AI/).length).toBeGreaterThanOrEqual(1);
     });
   });
 

@@ -13,7 +13,7 @@ const STOPS = [
 test('sin API key, optimizeRoute usa fallback greedy', async () => {
   delete process.env.OPENROUTER_API_KEY;
   const result = await optimizeRoute(STOPS, ORIGIN);
-  assert.equal(result.engine, 'local-greedy');
+  assert.equal(result.engine, 'local');
   assert.equal(result.route.length, STOPS.length);
 });
 

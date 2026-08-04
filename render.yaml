@@ -31,6 +31,10 @@ services:
         value: require
       - key: JWT_SECRET
         generateValue: true
+      - key: OPENROUTER_API_KEY
+        sync: false  # API key de OpenRouter — configurar manualmente
+      - key: OPENROUTER_MODEL
+        value: "nvidia/nemotron-3-super-120b-a12b:free"
       - key: OFFICE_PIN
         value: "0000"  # CAMBIAR en producción
       - key: CORS_ORIGINS
