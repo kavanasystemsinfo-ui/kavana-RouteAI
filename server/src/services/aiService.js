@@ -1,5 +1,5 @@
 // Motor de optimización de rutas KAVANA Route AI.
-// Prioridad: IA semántica via OpenRouter por su conocimiento
+// Prioridad: IA semántica (DeepSeek v3 vía OpenRouter) por su conocimiento
 // geográfico de España. Fallback: algoritmo greedy local (sin red) para
 // garantizar que el reparto siempre tiene un orden aunque OpenRouter caiga.
 
@@ -8,7 +8,7 @@ import { greedyRoute } from './routeOptimizer.js';
 const OPENROUTER_URL = 'https://openrouter.ai/api/v1/chat/completions';
 const AUTH_PREFIX = 'Bearer ';
 
-async function callOpenRouter(stops, origin) {
+async function callDeepSeek(stops, origin) {
   const apiKey = process.env.OPENROUTER_API_KEY;
   if (!apiKey) throw new Error('OPENROUTER_API_KEY no configurada');
 
@@ -30,7 +30,7 @@ async function callOpenRouter(stops, origin) {
     method: 'POST',
     headers: headers,
     body: JSON.stringify({
-      model: process.env.OPENROUTER_MODEL || 'nvidia/nemotron-3-super-120b-a12b:free',
+      model: 'deepseek/deepseek-chat',
       messages: [{ role: 'user', content: prompt }],
       temperature: 0.2
     })
@@ -49,18 +49,15 @@ async function callOpenRouter(stops, origin) {
   return route;
 }
 
-// Devuelve { engine, route } donde engine es 'ai' o 'local'.
+// Devuelve { engine, route } donde engine es 'ai-deepseek' o 'local-greedy'.
 export async function optimizeRoute(stops, origin = { lat: 39.5, lng: -0.42 }) {
   try {
-    const route = await callOpenRouter(stops, origin);
+    const route = await callDeepSeek(stops, origin);
     if (route && route.length === stops.length) {
-      return { engine: 'ai', route };
+      return { engine: 'ai-deepseek', route };
     }
     throw new Error('Ruta IA incompleta');
   } catch (err) {
-    return { engine: 'local', route: greedyRoute(stops, origin) };
+    return { engine: 'local-greedy', route: greedyRoute(stops, origin) };
   }
 }
-
-// Exportamos también la llamada directa a la IA (sin coordenadas necesarias)
-export { callOpenRouter };

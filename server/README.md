@@ -9,7 +9,6 @@ generación de POD (Proof of Delivery) en PDF.
 - better-sqlite3 (almacenamiento local)
 - multer (subida de imágenes OCR)
 - pdfkit (generación de POD)
-- pg (PostgreSQL — Neon en producción, JSON fallback en local)
 - Node 20 (`node --test` para tests, sin dependencias extra)
 
 ## Puertos

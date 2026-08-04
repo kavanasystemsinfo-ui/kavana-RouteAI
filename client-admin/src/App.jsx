@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 
 const API_BASE = (import.meta.env.VITE_API_BASE)
   ? `${import.meta.env.VITE_API_BASE.replace(/\/$/, '')}/api`
@@ -7,12 +7,12 @@ const API_BASE = (import.meta.env.VITE_API_BASE)
 const THEMES = {
   kavana: {
     bg: '#0f1115', panel: '#171a21', panel2: '#1f232c', border: '#272c36',
-    text: '#e6e9ef', muted: '#8b93a1', accent: '#f8cd00',
+    text: '#e6e9ef', muted: '#8b93a1', accent: '#FF3D00',
     green: '#22c55e', red: '#ef4444', amber: '#f59e0b'
   },
   clasico: {
     bg: '#f4f6f8', panel: '#ffffff', panel2: '#eef1f4', border: '#d9dee3',
-    text: '#1a2230', muted: '#6b7682', accent: '#f8cd00',
+    text: '#1a2230', muted: '#6b7682', accent: '#2563eb',
     green: '#16a34a', red: '#dc2626', amber: '#d97706'
   }
 };
@@ -108,12 +108,8 @@ export default function App() {
   if (!logged) {
     return (
       <div style={{position: 'fixed', inset: 0, background: C.bg, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', fontFamily: 'system-ui, sans-serif', color: C.text}}>
-        <img src="/logo.png" alt="Kavana Route AI" style={{height: 80, marginBottom: 16, objectFit: 'contain'}} />
-        <div style={{textAlign: 'center', marginBottom: 32}}>
-          <h1 style={{margin: 0, fontWeight: 900, fontSize: 22, letterSpacing: '-1px', color: C.accent}}>KAVANA</h1>
-          <p style={{margin: '4px 0 0', fontSize: 10, color: C.muted, fontWeight: 900, letterSpacing: 3}}>ROUTE AI</p>
-        </div>
-        <p style={{color: C.muted, marginBottom: 24, fontSize: 13, fontWeight: 600}}>Torre de Control · Oficina</p>
+        <h1 style={{color: C.accent, letterSpacing: '2px', fontWeight: 900}}>ROUTE AI</h1>
+        <p style={{color: C.muted, marginBottom: 24}}>Torre de Control · Oficina</p>
         <form onSubmit={login} style={{display: 'flex', flexDirection: 'column', gap: 12, width: 260}}>
           <input value={pin} onChange={e => setPin(e.target.value)} type="password" inputMode="numeric" placeholder="PIN de oficina" style={{padding: 16, background: C.panel, border: `1px solid ${C.border}`, borderRadius: 10, color: C.text, fontSize: 22, textAlign: 'center', letterSpacing: 6}} />
           <button type="submit" style={{padding: 14, background: C.accent, color: '#000', border: 'none', borderRadius: 10, fontWeight: 900, cursor: 'pointer'}}>ENTRAR</button>
@@ -129,38 +125,31 @@ export default function App() {
     incidents: stops.filter(s => s.status === 'incident').length
   };
   const opex = (kpi.delivered * settings.cost_per_km * 8 + kpi.delivered * settings.cost_per_hour * 0.5).toFixed(2);
-  const S = theme === 'clasico'
-    ? { bg: "url('/asphalt.png') center/cover no-repeat, #2d3239", text: '#e2e5eb', muted: '#9ba2b0', border: '#3d424d' }
-    : { bg: "url('/asphalt.png') center/cover no-repeat, #171a21", text: C.text, muted: C.muted, border: C.border };
 
   return (
     <div style={{display: 'flex', minHeight: '100vh', background: C.bg, color: C.text, fontFamily: 'system-ui, sans-serif'}}>
       {/* Sidebar */}
-      <aside style={{width: 220, background: S.bg, borderRight: `1px solid ${S.border}`, padding: 20, display: 'flex', flexDirection: 'column'}}>
+      <aside style={{width: 220, background: C.panel, borderRight: `1px solid ${C.border}`, padding: 20, display: 'flex', flexDirection: 'column'}}>
         <div style={{display: 'flex', alignItems: 'center', gap: 10, marginBottom: 30}}>
-          <img src="/logo.png" alt="logo" style={{height: 32}} />
-          <div>
-            <div style={{fontWeight: 900, fontSize: 14, color: C.accent, letterSpacing: '-1px', lineHeight: 1.1}}>KAVANA</div>
-            <div style={{fontSize: 8, color: S.muted, fontWeight: 900, letterSpacing: 2}}>ROUTE AI</div>
-          </div>
+          <img src="/logo.png" alt="logo" style={{height: 36}} />
+          <strong style={{color: C.accent, letterSpacing: 1}}>CONTROL</strong>
         </div>
         <div style={{display: 'flex', gap: 6, marginBottom: 18}}>
           {['kavana', 'clasico'].map(t => (
-            <button key={t} onClick={() => { setTheme(t); localStorage.setItem('rf_admin_theme', t); }} style={{flex: 1, padding: '8px 10px', borderRadius: 8, border: `1px solid ${S.border}`, cursor: 'pointer', fontWeight: 700, fontSize: 12, background: theme === t ? C.accent : 'transparent', color: theme === t ? '#000' : S.text}}>{t === 'kavana' ? 'Kavana' : 'Clásico'}</button>
+            <button key={t} onClick={() => { setTheme(t); localStorage.setItem('rf_admin_theme', t); }} style={{flex: 1, padding: '8px 10px', borderRadius: 8, border: `1px solid ${C.border}`, cursor: 'pointer', fontWeight: 700, fontSize: 12, background: theme === t ? C.accent : 'transparent', color: theme === t ? '#fff' : C.text}}>{t === 'kavana' ? 'Kavana' : 'Clásico'}</button>
           ))}
         </div>
         {[
           ['dashboard', 'Dashboard'],
           ['drivers', 'Repartidores'],
           ['stops', 'Repartos'],
-          ['sendRoute', 'Enviar Ruta'],
           ['signatures', 'Firmas'],
           ['incidents', 'Incidencias']
         ].map(([key, label]) => (
-          <button key={key} onClick={() => setSection(key)} style={{textAlign: 'left', padding: '12px 14px', marginBottom: 6, borderRadius: 8, border: 'none', cursor: 'pointer', fontWeight: 700, background: section === key ? C.accent : 'transparent', color: section === key ? '#000' : S.text}}>{label}</button>
+          <button key={key} onClick={() => setSection(key)} style={{textAlign: 'left', padding: '12px 14px', marginBottom: 6, borderRadius: 8, border: 'none', cursor: 'pointer', fontWeight: 700, background: section === key ? C.accent : 'transparent', color: section === key ? '#000' : C.text}}>{label}</button>
         ))}
-        <div style={{marginTop: 'auto', fontSize: 11, color: S.muted}}>Route AI v1.0</div>
-        <button onClick={logout} style={{marginTop: 12, textAlign: 'left', padding: '10px 14px', borderRadius: 8, border: `1px solid ${S.border}`, cursor: 'pointer', fontWeight: 700, background: 'transparent', color: S.muted}}>Salir</button>
+        <div style={{marginTop: 'auto', fontSize: 11, color: C.muted}}>Route AI v1.0</div>
+        <button onClick={logout} style={{marginTop: 12, textAlign: 'left', padding: '10px 14px', borderRadius: 8, border: `1px solid ${C.border}`, cursor: 'pointer', fontWeight: 700, background: 'transparent', color: C.muted}}>Salir</button>
       </aside>
 
       {/* Main */}
@@ -203,10 +192,6 @@ export default function App() {
             filterDriver={filterDriver} setFilterDriver={setFilterDriver}
             filterStatus={filterStatus} setFilterStatus={setFilterStatus}
             from={from} setFrom={setFrom} to={to} setTo={setTo} driversList={drivers} />
-        )}
-
-        {section === 'sendRoute' && (
-          <SendRouteSection API_BASE={API_BASE} token={token} drivers={drivers} loadAll={loadAll} />
         )}
 
         {section === 'signatures' && (
@@ -373,79 +358,3 @@ function Filters({ driversList, filterDriver, setFilterDriver, filterStatus, set
 
 const input = { padding: '8px 10px', background: C.panel, border: `1px solid ${C.border}`, borderRadius: 8, color: C.text, fontSize: 13 };
 const btn = { padding: '10px 14px', background: C.accent, color: '#000', border: 'none', borderRadius: 8, fontWeight: 800, cursor: 'pointer' };
-
-function SendRouteSection({ API_BASE, token, drivers, loadAll }) {
-  const [selDriver, setSelDriver] = useState('');
-  const [sending, setSending] = useState(false);
-  const [result, setResult] = useState('');
-  const fileRef = useRef(null);
-
-  const handleSend = async (e) => {
-    e.preventDefault();
-    const file = fileRef.current?.files?.[0];
-    if (!file) { setResult('❌ Selecciona un archivo'); return; }
-    if (!selDriver) { setResult('❌ Selecciona un repartidor'); return; }
-    setSending(true); setResult('⏳ Procesando albarán...');
-    try {
-      // Paso 1: OCR del archivo
-      const formData = new FormData();
-      formData.append('image', file);
-      const ocrRes = await authFetch(`${API_BASE}/ocr`, { method: 'POST', body: formData });
-      const ocrData = await ocrRes.json();
-      if (!ocrData.success || !ocrData.addresses?.length) {
-        setResult('❌ No se detectaron direcciones en el archivo');
-        setSending(false); return;
-      }
-      // Paso 2: Crear paradas en bulk para el repartidor seleccionado
-      const bulkRes = await authFetch(`${API_BASE}/stops/bulk`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ addresses: ocrData.addresses, driver_id: Number(selDriver) })
-      });
-      const bulkData = await bulkRes.json();
-      if (bulkData.success) {
-        const driverName = drivers.find(d => String(d.id) === String(selDriver))?.name || `ID ${selDriver}`;
-        setResult(`✅ ${bulkData.total} paradas enviadas a ${driverName}. Ya puede verlas en su app.`);
-        fileRef.current.value = '';
-        loadAll();
-      } else {
-        setResult('❌ Error al crear las paradas: ' + (bulkData.error || 'desconocido'));
-      }
-    } catch (err) {
-      setResult('❌ Error de conexión: ' + err.message);
-    }
-    setSending(false);
-  };
-
-  return (
-    <div>
-      <h2>Enviar ruta a repartidor</h2>
-      <p style={{color: C.muted, marginBottom: 20, fontSize: 13}}>
-        Sube un albarán (imagen, PDF o CSV) y asígnaselo a un repartidor. Su app se actualizará automáticamente al iniciar sesión.
-      </p>
-      <div style={{background: C.panel, border: `1px solid ${C.border}`, borderRadius: 12, padding: 20}}>
-        <div style={{display: 'flex', gap: 12, marginBottom: 16, flexWrap: 'wrap', alignItems: 'center'}}>
-          <select value={selDriver} onChange={e => setSelDriver(e.target.value)} style={input}>
-            <option value="">Seleccionar repartidor...</option>
-            {drivers.filter(d => d.active).map(d => (
-              <option key={d.id} value={d.id}>{d.name} (PIN: {d.pin})</option>
-            ))}
-          </select>
-          <input type="file" ref={fileRef} accept="image/*,.pdf,.csv" style={{...input, flex: 1}} />
-          <button onClick={handleSend} disabled={sending} style={{...btn, opacity: sending ? 0.6 : 1}}>
-            {sending ? 'Enviando...' : 'Enviar Ruta'}
-          </button>
-        </div>
-        {result && (
-          <div style={{
-            marginTop: 12, padding: '12px 16px', borderRadius: 8, fontSize: 13, fontWeight: 600,
-            background: result.startsWith('✅') ? '#22c55e20' : result.startsWith('❌') ? '#ef444420' : '#f59e0b20',
-            color: result.startsWith('✅') ? '#22c55e' : result.startsWith('❌') ? '#ef4444' : '#f59e0b'
-          }}>
-            {result}
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
-

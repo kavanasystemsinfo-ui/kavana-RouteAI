@@ -1,49 +1,18 @@
-# Render deployment — KAVANA Route AI (backend API)
-# Node buildpack (no Docker) para evitar problemas con better-sqlite3.
-# Base de datos: Supabase PostgreSQL (ver DATABASE_URL)
+# Render deployment para KAVANA Route AI (backend API)
+# Usa el buildpack de Node (no Docker) para compilar better-sqlite3 sin problemas.
 services:
   - type: web
     name: kavana-routeai-api
     runtime: node
-    repo: https://github.com/kavanasystemsinfo-ui/kavana-RouteAI
+    repo: https://github.com/kavanasystemsinfo-ui/kavana-RouteFleet
     rootDir: server
     branch: main
-    buildCommand: npm install
+    buildCommand: apt-get update && apt-get install -y poppler-utils && npm install
     startCommand: node src/index.js
     plan: free
-    healthCheckPath: /health
+    healthCheckPath: /api/settings
     envVars:
       - key: PORT
         value: "5001"
       - key: NODE_ENV
         value: production
-      - key: PGHOST
-        sync: false  # Neon host — configurar manualmente
-      - key: PGUSER
-        value: neondb_owner
-      - key: PGPASSWORD
-        sync: false  # Password de Neon — configurar manualmente
-      - key: PGDATABASE
-        value: neondb
-      - key: PGPORT
-        value: "5432"
-      - key: PGSSLMODE
-        value: require
-      - key: JWT_SECRET
-        generateValue: true
-      - key: OPENROUTER_API_KEY
-        sync: false  # API key de OpenRouter — configurar manualmente
-      - key: OPENROUTER_MODEL
-        value: "nvidia/nemotron-3-super-120b-a12b:free"
-      - key: OFFICE_PIN
-        value: "0000"  # CAMBIAR en producción
-      - key: CORS_ORIGINS
-        value: "https://kavanasystemsinfo-ui.github.io,https://routeai.kavanasystems.com,https://www.routeai.kavanasystems.com"
-      - key: SMTP_HOST
-        value: ""  # Opcional: Resend u otro proveedor SMTP
-      - key: SMTP_USER
-        value: ""
-      - key: SMTP_PASS
-        value: ""
-      - key: SMTP_FROM
-        value: "no-reply@routeai.kavanasystems.com"
