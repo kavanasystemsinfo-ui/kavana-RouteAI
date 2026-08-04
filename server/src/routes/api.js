@@ -558,6 +558,41 @@ export default function apiRouter(db) {
     } catch (error) { res.status(500).json({ error: error.message }); }
   });
 
+  // Asistente técnico (RAG sobre la documentación del repo). Público, con límite por IP.
+  const assistantLimits = new Map(); // ip -> {count, resetAt}
+  router.post('/assistant', async (req, res) => {
+    try {
+      const { question } = req.body;
+      if (!question || typeof question !== 'string' || question.trim().length < 4) {
+        return res.status(400).json({ error: 'Escribe una pregunta (mínimo 4 caracteres)' });
+      }
+      if (question.length > 500) {
+        return res.status(400).json({ error: 'La pregunta es demasiado larga (máximo 500 caracteres)' });
+      }
+      // Límite por IP: 25 preguntas / día por visitante
+      const ip = req.headers['x-forwarded-for']?.split(',')[0]?.trim() || req.socket?.remoteAddress || 'unknown';
+      const ahora = Date.now();
+      const limite = assistantLimits.get(ip);
+      if (!limite || limite.resetAt < ahora) {
+        assistantLimits.set(ip, { count: 1, resetAt: ahora + 24 * 3600 * 1000 });
+      } else if (limite.count >= 25) {
+        return res.status(429).json({ error: 'Has alcanzado el límite de preguntas de hoy (25). Vuelve mañana o pregúntale directamente a Jorge.' });
+      } else {
+        limite.count += 1;
+      }
+
+      const { responderPregunta } = await import('../services/assistantService.js');
+      const apiKey = process.env.OPENROUTER_API_KEY;
+      if (!apiKey) return res.status(500).json({ error: 'Asistente no configurado (falta OPENROUTER_API_KEY en el servidor)' });
+
+      const result = await responderPregunta(apiKey, question.trim());
+      res.json({ success: true, ...result });
+    } catch (error) {
+      console.error('Error en /assistant:', error.message);
+      res.status(500).json({ error: 'El asistente falló al responder. Inténtalo de nuevo en un momento.' });
+    }
+  });
+
   return router;
 }
 

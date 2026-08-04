@@ -365,3 +365,23 @@ test('cleanupExpired borra solo drivers de visitante expirados', async () => {
     assert.equal(restantes.length, 1, 'solo debe quedar el driver demo base');
   } finally { server.close(); }
 });
+
+test('POST /assistant valida entrada y responde 400 con pregunta corta', async () => {
+  const { server, base } = await startServer();
+  try {
+    const res = await fetch(`${base}/api/assistant`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ question: 'hol' }) });
+    assert.equal(res.status, 400);
+    const res2 = await fetch(`${base}/api/assistant`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}) });
+    assert.equal(res2.status, 400);
+  } finally { server.close(); }
+});
+
+test('POST /assistant responde 500 sin OPENROUTER_API_KEY (no inventa respuestas)', async () => {
+  const { server, base } = await startServer();
+  try {
+    const res = await fetch(`${base}/api/assistant`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ question: '¿Cómo funciona el POD de Route AI?' }) });
+    assert.equal(res.status, 500);
+    const data = await res.json();
+    assert.ok(data.error.includes('OPENROUTER_API_KEY') || data.error.includes('falló'), 'debe indicar que falta configurar la clave');
+  } finally { server.close(); }
+});
