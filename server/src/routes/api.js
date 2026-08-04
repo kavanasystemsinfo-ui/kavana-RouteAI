@@ -222,6 +222,27 @@ export default function apiRouter(db) {
     }
   });
 
+  // Crear múltiples paradas a la vez (desde OCR de PDF/albarán)
+  router.post('/stops/bulk', requireAuth(['driver']), (req, res) => {
+    try {
+      const { addresses, driver_id } = req.body;
+      if (!addresses || !Array.isArray(addresses) || addresses.length === 0) {
+        return res.status(400).json({ error: 'Array de direcciones requerido' });
+      }
+      
+      const created = [];
+      let stopNumber = Date.now();
+      for (const addr of addresses) {
+        const id = queries.addStop(db, stopNumber++, addr, 'pending', driver_id ? Number(driver_id) : null);
+        created.push({ id, stop_number: stopNumber - 1, address: addr });
+      }
+      
+      res.json({ success: true, created, total: created.length });
+    } catch (error) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   // Optimizar Ruta (IA)
   router.post('/optimize', async (req, res) => {
     try {

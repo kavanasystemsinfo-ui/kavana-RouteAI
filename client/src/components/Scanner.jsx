@@ -80,9 +80,7 @@ const Scanner = ({ onScanComplete, onClose }) => {
       if (data.success) {
         setDetectedData(data);
         setScanStatus('success');
-        setTimeout(() => {
-          onScanComplete(data);
-        }, 2000);
+        // Ya no auto-importamos — el usuario pulsa el botón IMPORTAR
       } else {
         setScanStatus('error');
       }
@@ -245,11 +243,31 @@ const Scanner = ({ onScanComplete, onClose }) => {
             <motion.div 
               initial={{ scale: 0.8, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
-              className="text-center bg-black/80 p-6 rounded-2xl backdrop-blur-xl border border-orange-500/30 w-full"
+              className="text-center bg-black/80 p-6 rounded-2xl backdrop-blur-xl border border-orange-500/30 w-full max-w-md mx-auto"
             >
               <CheckCircle2 className="w-14 h-14 text-orange-500 mb-2 mx-auto" />
-              <p className="text-xs font-bold text-slate-400 uppercase mb-1">Éxito</p>
-              <p className="text-lg font-bold text-white">{detectedData?.detectedAddress}</p>
+              <p className="text-xs font-bold text-slate-400 uppercase mb-1">
+                {detectedData?.totalAddresses > 1 
+                  ? `${detectedData.totalAddresses} direcciones detectadas` 
+                  : 'Éxito'}
+              </p>
+              {detectedData?.addresses && detectedData.addresses.length > 1 ? (
+                <div className="text-left mt-3 max-h-48 overflow-y-auto">
+                  {detectedData.addresses.map((addr, i) => (
+                    <div key={i} className="text-xs text-slate-300 py-1 border-b border-slate-800">
+                      {addr}
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-lg font-bold text-white">{detectedData?.detectedAddress}</p>
+              )}
+              <button
+                onClick={() => onScanComplete(detectedData)}
+                className="mt-4 px-6 py-3 bg-orange-600 text-white rounded-xl font-bold text-sm active:scale-95 transition-transform"
+              >
+                IMPORTAR {detectedData?.totalAddresses > 1 ? `${detectedData.totalAddresses} PARADAS` : 'PARADA'}
+              </button>
             </motion.div>
           )}
 

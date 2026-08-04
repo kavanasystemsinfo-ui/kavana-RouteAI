@@ -236,26 +236,32 @@ function App() {
     setShowDriverGate(true);
   };
 
-  // Tras escanear, creamos la parada etiquetada con el repartidor.
+  // Tras escanear, creamos las paradas (una o múltiples)
   const handleScanComplete = async (data) => {
     try {
-      const address = data?.detectedAddress || 'Dirección detectada';
-      await driverAuthFetch(`${API_BASE}/ocr_manual`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ stop_number: Date.now(), address, driver_id })
-      });
+      if (data?.addresses && data.addresses.length > 1) {
+        // Múltiples direcciones: usar endpoint bulk
+        await driverAuthFetch(`${API_BASE}/stops/bulk`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ addresses: data.addresses, driver_id: driverId })
+        });
+      } else {
+        // Una sola dirección
+        const address = data?.detectedAddress || data?.addresses?.[0] || 'Dirección detectada';
+        await driverAuthFetch(`${API_BASE}/ocr_manual`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ stop_number: Date.now(), address, driver_id: driverId })
+        });
+      }
     } catch (e) { console.error(e); }
     fetchStops();
   };
 
   useEffect(() => { fetchStops(); }, []);
 
-  const activeStop = stops.find(s => s.status === 'pending') || stops[0] || {
-    stop_number: 1,
-    address: "Cargando dirección...",
-    id: 1
-  };
+  const activeStop = stops.find(s => s.status === 'pending') || stops[0] || null;
 
   const handleDeliver = async (deliveryData) => {
     if (!activeStop.id) return;
@@ -377,6 +383,14 @@ function App() {
       <main style={{flex: 1, paddingBottom: '100px', overflowY: 'auto'}}>
         {activeTab === 'map' && (
           <div className="animate-fade">
+            {!activeStop ? (
+              <div style={{textAlign: 'center', padding: '80px 24px', color: '#444'}}>
+                <MapPin size={48} style={{marginBottom: '16px', opacity: 0.2}} />
+                <div style={{fontSize: '14px', fontWeight: '800'}}>No hay paradas cargadas</div>
+                <div style={{fontSize: '11px', marginTop: '8px'}}>Escanea un albarán para empezar</div>
+              </div>
+            ) : (
+              <>
             <div style={styles.stopInfo}>
               <div style={styles.stopLabel}>PARADA #{activeStop.stop_number} / {stops.length}</div>
               <div style={styles.stopMain}>
@@ -416,15 +430,15 @@ function App() {
             </div>
 
             <div style={styles.checklist}>
-               <div style={styles.stopLabel}>CHECKLIST DE ENTREGA (4 BULTOS)</div>
-               {[1, 2, 3, 4].map(i => (
-                 <div key={i} style={{...styles.checkItem, opacity: i > 2 ? 0.3 : 1}}>
-                    <div style={i > 2 ? {width: '24px', height: '24px', border: '2px solid #444', borderRadius: '4px'} : styles.checkIcon}>
-                      {i <= 2 && <Check style={{width: '14px', color: '#000', strokeWidth: '4px'}} />}
-                    </div>
-                    <div style={{fontSize: '12px', fontWeight: '800'}}>Bulto {i}/4 #KL-78{i} {i <= 2 && <span style={{color: '#666', marginLeft: '8px'}}>(Confirmado)</span>}</div>
-                 </div>
-               ))}
+               {stops.length > 0 && (
+                 <>
+                   <div style={styles.stopLabel}>CHECKLIST DE ENTREGA</div>
+                   <div style={{...styles.checkItem, opacity: 0.3}}>
+                      <div style={{width: '24px', height: '24px', border: '2px solid #444', borderRadius: '4px'}} />
+                      <div style={{fontSize: '12px', fontWeight: '800', color: '#666'}}>Confirmar bultos al entregar</div>
+                   </div>
+                 </>
+               )}
                <div style={{display: 'flex', gap: '10px', marginTop: '30px'}}>
                  <button style={{...styles.btnPrimary, marginTop: 0, backgroundColor: '#ff4444'}} onClick={() => setShowIncident(true)}>
                     INCIDENCIA
@@ -434,6 +448,8 @@ function App() {
                  </button>
                </div>
             </div>
+              </>
+            )}
           </div>
         )}
 
