@@ -25,7 +25,7 @@ function elegir(arr) { return arr[Math.floor(rnd() * arr.length)]; }
 // Datos base
 // ---------------------------------------------------------------------------
 const REPARTIDORES = [
-  { name: 'Raúl Giménez',      pin: '5855', fuel_type: 'diesel', baseKm: 42000 },
+  { name: 'Repartidor KAVANA', pin: '5855', fuel_type: 'diesel', baseKm: 42000 },
   { name: 'Marco Andrés',      pin: '5856', fuel_type: 'diesel',  baseKm: 31500 },
   { name: 'Lucía Ferrando',    pin: '5857', fuel_type: 'electrico', baseKm: 9800 },
   { name: 'Javier Molina',     pin: '5858', fuel_type: 'gasolina', baseKm: 52700 },
