@@ -3,8 +3,6 @@ name: Deploy Frontend to GitHub Pages
 on:
   push:
     branches: [ "main" ]
-    paths:
-      - 'client/**'
   workflow_dispatch:
 
 permissions:
@@ -31,6 +29,11 @@ jobs:
 
       - name: Build
         run: cd client && npm run build
+        env:
+          VITE_API_BASE: ${{ secrets.VITE_API_BASE }}
+
+      - name: Add .nojekyll (evita procesado Jekyll del SPA)
+        run: touch client/dist/.nojekyll
 
       - name: Setup Pages
         uses: actions/configure-pages@v4

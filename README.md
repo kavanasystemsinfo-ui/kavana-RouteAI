@@ -1,31 +1,38 @@
-# 🛡️ KAVANA LOGISTICS | Industrial Control System
+# 🛡️ KAVANA ROUTEFLEET | Sistema de Logística de Campo
 
 **KAVANA** (Propósito/Intención) es la división logística de Kavana Systems diseñada para empresas de reparto y distribución. Un sistema de gestión de campo táctico que prioriza la eficiencia, el control de costes y la trazabilidad ISO 9001.
 
 ## 🚀 Innovaciones Clave
 - **Identidad Electric Orange:** Interfaz mimetizada en `#FF3D00` para máxima visibilidad en tablets industriales y móviles.
-- **Arquitectura Ubicua:** Torre de Control (Desktop) + App de Operario (Mobile) sincronizadas vía red local (Zero-Cloud).
-- **IA Routing Engine:** Optimización semántica de direcciones mediante **DeepSeek v3** vía OpenRouter.
-- **Kavana Lens:** Motor OCR especializado en albaranes industriales con filtrado inteligente de materiales.
+- **Arquitectura Ubicua:** Torre de Control (Desktop) + App de Operario (Mobile) sincronizadas vía red local.
+- **IA Routing Engine:** Optimización de rutas mediante **DeepSeek v3** vía OpenRouter, con **fallback greedy local** si la API cae (el reparto nunca se detiene).
+- **Kavana Lens:** Motor OCR de albaranes con limpieza semántica de direcciones (filtra símbolos de tabla y términos de envío).
+- **Prueba de Entrega (POD) digital:** firma del receptor + geolocalización generadas en PDF descargable desde el móvil y la Torre de Control.
 
 ## 🛠️ Stack Tecnológico
-- **Frontend:** React 18 + Vite (Estilos Inline para estabilidad visual absoluta).
-- **Backend:** Node.js + Express.
-- **Base de Datos:** SQLite3 (Local & Fast).
-- **Iconografía:** Lucide-React.
-- **Animaciones:** Framer Motion.
+- **Frontend:** React 18 + Vite (estilos inline para estabilidad visual), Vitest + Testing Library (tests).
+- **Backend:** Node.js + Express, SQLite (better-sqlite3), PDFKit (POD).
+- **Calidad:** 21 tests de backend (node:test, integración incluida) + 2 tests de frontend (Vitest). CI en GitHub Actions corre ambos + build.
+- **Iconografía:** Lucide-React. **Animaciones:** Framer Motion.
 
-## 📱 Acceso Multi-dispositivo (Smart Network)
-El sistema es dinámico y no depende de servidores externos para la red local.
-1. Inicia el sistema en el PC principal.
-2. Abre el navegador en cualquier móvil/tablet en la misma WiFi.
-3. Accede vía IP local (ej: `http://192.168.0.159:3001`).
-4. *El sistema resuelve automáticamente la API_BASE para sincronizar datos en tiempo real.*
+## 📱 Acceso Multi-dispositivo
+1. Arranca el backend (`server/`): `npm install && npm start` (puerto 5001).
+2. Sirve el cliente (`client/`): `npm run build` y sirve `dist/`, o `npm run dev`.
+3. En móvil/tablet en la misma red, accede vía la IP del PC (la `API_BASE` se resuelve automáticamente).
 
-## 📦 Estructura del Proyecto
-- `/client`: Aplicación React (Frontend táctico).
-- `/server`: API REST, Base de Datos y Motor OCR (Backend).
-- `/docs`: Fichas técnicas y manuales de usuario.
+## 🧪 Tests y CI
+```bash
+# Backend
+cd server && npm install && npm test
+# Frontend
+cd client && npm install && npm test
+```
+La CI (` .github/workflows/ci.yml`) ejecuta backend (tests), frontend (tests) y build en cada push a `main`.
+
+## 📦 Estructura
+- `/client`: App React (operario móvil + Torre de Control desktop).
+- `/server`: API REST, BD SQLite, servicios OCR/IA/PDF y 21 tests.
+- `/docs`: fichas técnicas y manuales.
 
 ---
-*KAVANA LOGISTICS: Eficiencia Industrial en Movimiento.*
+*KAVANA ROUTEFLEET: Eficiencia en Movimiento.*

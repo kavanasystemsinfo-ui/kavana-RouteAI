@@ -1,23 +1,17 @@
-# Registro de Tareas - Kavana Logistics
+# Registro de Tareas - Kavana RouteFleet
 
-## ✅ Completado (Sesión 2026-04-29)
-- [x] Optimizar motor OCR para filtrar ruidos visuales de tablas industriales.
-- [x] Implementar limpieza de direcciones (eliminación de materiales y símbolos).
-- [x] Integrar API de OpenRouter (DeepSeek v3) para optimización de ruta.
-- [x] Rediseño completo de la UI siguiendo el mockup "Kavana Tactical".
-- [x] Implementar controles de Zoom personalizados en el mapa incrustado.
-- [x] Solucionar fallo de renderizado mediante migración a estilos inline.
+## ✅ Completado (Sesión 2026-07-13 — Profesionalización)
+- [x] Unificar marca KAVANA Logistics -> KAVANA ROUTEFLEET en docs, UI y config.
+- [x] Reorientar el producto a empresas de reparto en general (sin sesgo de sector).
+- [x] Backend reconstruido y funcional: db.js, ocrService, aiService, pdfService, api.js como factory con inyección de BD.
+- [x] POD 100% cerrado: firma + geolocalización -> PDF descargable desde móvil y Torre de Control.
+- [x] Fallback de rutas (OpenRouter caído -> algoritmo greedy local).
+- [x] 21 tests de backend (node:test, incluye integración end-to-end POD).
+- [x] 2 tests de frontend (Vitest + Testing Library) sobre App.
+- [x] CI en GitHub Actions: backend tests + frontend tests + build en cada push.
+- [x] Corregir ruta rota de import de db.js en api.js (bug crítico que impedía arrancar).
 
-## ✅ Completado (Sesión 2026-05-01)
-- [x] Unificación de identidad visual: Mimetización total con "Electric Orange" (#FF3D00).
-- [x] Conectividad Multi-dispositivo: Configuración dinámica de API_BASE para acceso WiFi.
-- [x] Gestión de Paradas: Implementación de borrado individual y limpieza masiva de ruta.
-- [x] Configuración de Red: Apertura de puertos 3001/5001 en Firewall de Windows.
-- [x] Modelo OPEX: Integración de costes dinámicos (Sueldo/Hora + Desgaste/Km) en el Dashboard.
-
-## 🔜 Próximos Pasos
-- [ ] Generación de POD (Proof of Delivery) en PDF con firma y geolocalización.
-- [ ] Lógica de "Hambre de Material": Consumo real de bobinas vs teórico en la entrega.
-- [ ] Integración con MongoDB para persistencia Multi-tenant avanzada.
-- [ ] Histórico de Rutas: Dashboard de rendimiento semanal por operario.
-- [ ] Notificaciones Push: Alertas al supervisor ante incidencias de tráfico o retrasos.
+## 🔧 Deuda técnica honesta (pendiente, no bloqueante)
+- [ ] Multi-tenant: SQLite es mono-tenant (una empresa por instancia).
+- [ ] Cobertura de tests del cliente aún parcial (solo renderizado de App).
+- [ ] `deploy.yml` despliega el cliente a GitHub Pages pero no el backend (requiere VPS o PaaS).

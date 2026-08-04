@@ -1,18 +1,13 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { initDb, queries } from '../src/db.js';
-import Database from 'better-sqlite3';
-import { fileURLToPath } from 'url';
+import os from 'os';
+import fs from 'fs';
+import path from 'path';
+
 function freshDb() {
-  const db = new Database(':memory:');
-  // initDb usa ruta por defecto; replicamos schema en memoria para el test.
-  db.exec(`
-    CREATE TABLE stops (id INTEGER PRIMARY KEY AUTOINCREMENT, stop_number INTEGER, address TEXT, status TEXT DEFAULT 'pending', signature TEXT, receiver_name TEXT, lat REAL, lng REAL, created_at TEXT);
-    CREATE TABLE incidents (id INTEGER PRIMARY KEY AUTOINCREMENT, stop_id INTEGER, type TEXT, photo_data TEXT, notes TEXT, created_at TEXT);
-    CREATE TABLE settings (key TEXT PRIMARY KEY, value TEXT);
-    CREATE TABLE pods (stop_id INTEGER PRIMARY KEY, file_path TEXT, created_at TEXT);
-  `);
-  return db;
+  const file = path.join(os.tmpdir(), `rf-test-${Date.now()}-${Math.random().toString(36).slice(2)}.json`);
+  return initDb(file);
 }
 
 test('addStop y listStops', () => {
@@ -51,6 +46,5 @@ test('settings y POD', () => {
   queries.setSetting(db, 'cost_per_km', '0.5');
   assert.equal(queries.getSettings(db).cost_per_km, 0.5);
   queries.savePod(db, 3, '/pods/3.pdf');
-  const row = db.prepare('SELECT * FROM pods WHERE stop_id=3').get();
-  assert.equal(row.file_path, '/pods/3.pdf');
+  assert.equal(db._store.pods[3], '/pods/3.pdf');
 });

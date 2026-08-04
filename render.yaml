@@ -1,0 +1,18 @@
+# Render deployment para KAVANA RouteFleet (backend API)
+# Usa el buildpack de Node (no Docker) para compilar better-sqlite3 sin problemas.
+services:
+  - type: web
+    name: kavana-routefleet-api
+    runtime: node
+    repo: https://github.com/kavanasystemsinfo-ui/kavana-RouteFleet
+    rootDir: server
+    branch: main
+    buildCommand: npm install
+    startCommand: node src/index.js
+    plan: free
+    healthCheckPath: /api/settings
+    envVars:
+      - key: PORT
+        value: "5001"
+      - key: NODE_ENV
+        value: production

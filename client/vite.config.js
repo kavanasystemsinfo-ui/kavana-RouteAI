@@ -1,11 +1,12 @@
-import { defineConfig } from 'vite'
-import react from '@vitejs/plugin-react'
+import { defineConfig } from 'vite';
+import react from '@vitejs/plugin-react';
 
-// https://vitejs.dev/config/
+// base apunta al subpath del repo en GitHub Pages.
+// En local (npm run dev) Vite lo ignora y sirve desde '/'.
 export default defineConfig({
+  base: '/kavana-RouteFleet/',
   plugins: [react()],
   server: {
-    port: 3001,
     host: true
   }
-})
+});

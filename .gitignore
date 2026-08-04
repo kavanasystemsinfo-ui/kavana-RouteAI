@@ -7,6 +7,7 @@ dist/
 .env
 *.db
 *.db-journal
+routefleet.json
 
 # Logs y Temporales
 npm-debug.log*

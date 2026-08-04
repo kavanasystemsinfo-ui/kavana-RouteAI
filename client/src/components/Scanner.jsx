@@ -2,7 +2,9 @@ import { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Camera, X, Zap, RefreshCw, CheckCircle2, AlertTriangle, Upload } from 'lucide-react';
 
-const API_BASE = `http://${window.location.hostname}:5001/api`;
+const API_BASE = (import.meta.env.VITE_API_BASE)
+  ? `${import.meta.env.VITE_API_BASE.replace(/\/$/, '')}/api`
+  : `http://${window.location.hostname}:5001/api`;
 
 const Scanner = ({ onScanComplete, onClose }) => {
   const [isScanning, setIsScanning] = useState(false);

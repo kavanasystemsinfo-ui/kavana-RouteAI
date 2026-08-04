@@ -12,11 +12,13 @@ import {
   Check,
   RefreshCcw,
   Plus,
-  Trash2
+  Trash2,
+  Download
 } from 'lucide-react';
 import { AnimatePresence, motion } from 'framer-motion';
 import Scanner from './components/Scanner';
 import SignaturePad from './components/SignaturePad';
+import { downloadPod, generatePodBlob } from './services/podService';
 import IncidentModal from './components/IncidentModal';
 
 const styles = {
@@ -142,13 +144,16 @@ const styles = {
   }
 };
 
-const API_BASE = `http://${window.location.hostname}:5001/api`;
+const API_BASE = (import.meta.env.VITE_API_BASE)
+  ? `${import.meta.env.VITE_API_BASE.replace(/\/$/, '')}/api`
+  : `http://${window.location.hostname}:5001/api`;
 
 function App() {
   const [activeTab, setActiveTab] = useState('map');
   const [showScanner, setShowScanner] = useState(false);
   const [showSignature, setShowSignature] = useState(false);
   const [showIncident, setShowIncident] = useState(false);
+  const [podUrl, setPodUrl] = useState(null);
   const [stops, setStops] = useState([]);
   
   const [mapZoom, setMapZoom] = useState(15);
@@ -171,8 +176,22 @@ function App() {
 
   const handleDeliver = async (deliveryData) => {
     if (!activeStop.id) return;
+    const deliveredId = activeStop.id; // fijamos el id antes de recargar paradas
+    // Generamos el POD en el navegador (descarga garantizada, sin depender del backend).
+    const stopInfo = {
+      id: deliveredId,
+      address: activeStop.address,
+      receiver_name: deliveryData.receiverName
+    };
+    const blobUrl = (() => {
+      try {
+        const blob = generatePodBlob(stopInfo, deliveryData.signature);
+        return URL.createObjectURL(blob);
+      } catch (_) { return null; }
+    })();
+    if (blobUrl) setPodUrl(blobUrl);
     try {
-      await fetch(`http://localhost:5001/api/stops/${activeStop.id}`, {
+      const res = await fetch(`${API_BASE}/stops/${deliveredId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
@@ -182,6 +201,20 @@ function App() {
         })
       });
       setShowSignature(false);
+      // El backend puede devolver pod_url (si esta sincronizado); lo usamos si existe.
+      const toFull = (u) => (u && u.startsWith('/') ? API_BASE + u : u);
+      try {
+        const data = await res.json();
+        if (data.pod_url) {
+          setPodUrl(toFull(data.pod_url));
+        } else {
+          const podRes = await fetch(`${API_BASE}/stops/${deliveredId}/pod`);
+          if (podRes.ok) {
+            const pod = await podRes.json();
+            setPodUrl(toFull(pod.pod_url));
+          }
+        }
+      } catch (_) { /* POD opcional: ya tenemos el local */ }
       fetchStops();
     } catch (error) { console.error(error); }
   };
@@ -189,7 +222,7 @@ function App() {
   const handleIncidentSubmit = async (incidentData) => {
     if (!activeStop.id) return;
     try {
-      await fetch(`http://localhost:5001/api/stops/${activeStop.id}/incident`, {
+      await fetch(`${API_BASE}/stops/${activeStop.id}/incident`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(incidentData)
@@ -223,10 +256,10 @@ function App() {
     <div style={styles.container}>
       <header style={styles.header}>
         <div style={{display: 'flex', alignItems: 'center', gap: '12px'}}>
-          <img src="/logo.png" alt="Kavana Logistics" style={{height: '45px', width: 'auto'}} />
+          <img src="logo.png" alt="Kavana RouteFleet" style={{height: '45px', width: 'auto'}} />
           <div>
             <div style={{...styles.brand, fontSize: '18px'}}>KAVANA</div>
-            <div style={{fontSize: '8px', color: '#666', fontWeight: '900', letterSpacing: '2px'}}>LOGISTICS</div>
+            <div style={{fontSize: '8px', color: '#666', fontWeight: '900', letterSpacing: '2px'}}>ROUTEFLEET</div>
           </div>
         </div>
         <div style={{display: 'flex', alignItems: 'center', gap: '12px'}}>
@@ -300,6 +333,14 @@ function App() {
                  </button>
                </div>
             </div>
+          </div>
+        )}
+
+        {podUrl && (
+          <div style={{padding: '0 24px 24px'}}>
+            <a href={podUrl} target="_blank" rel="noreferrer" style={{...styles.btnPrimary, width: '100%', justifyContent: 'center', marginTop: '12px', backgroundColor: '#FF3D00', color: '#000', textDecoration: 'none'}}>
+               DESCARGAR POD (FIRMA) <Download style={{width: '20px'}} />
+            </a>
           </div>
         )}
 

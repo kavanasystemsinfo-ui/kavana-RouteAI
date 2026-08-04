@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { Truck, AlertTriangle, CheckCircle, Clock, FileText, Download, Settings, Save, DollarSign } from 'lucide-react';
 
-const API_BASE = `http://${window.location.hostname}:5001/api`;
+const API_BASE = (import.meta.env.VITE_API_BASE)
+  ? `${import.meta.env.VITE_API_BASE.replace(/\/$/, '')}/api`
+  : `http://${window.location.hostname}:5001/api`;
 
 const AdminDashboard = () => {
   const [data, setData] = useState({ stops: [], metrics: { total: 0, delivered: 0, incidents: 0 }, settings: {} });
@@ -12,20 +14,15 @@ const AdminDashboard = () => {
   const fetchData = async () => {
     try {
       const [stopsRes, settingsRes] = await Promise.all([
-        fetch(`${API_BASE}/stops`),
+        fetch(`${API_BASE}/dashboard-data`),
         fetch(`${API_BASE}/settings`)
       ]);
-      
       if (!stopsRes.ok || !settingsRes.ok) throw new Error('Fallo en la respuesta del servidor');
-
-      const stops = await stopsRes.json();
+      const dash = await stopsRes.json();
       const settings = await settingsRes.json();
       
-      const metrics = {
-        total: stops.length,
-        delivered: stops.filter(s => s.status === 'delivered').length,
-        incidents: stops.filter(s => s.status === 'incident').length
-      };
+      const stops = dash.stops || [];
+      const metrics = dash.metrics || { total: 0, delivered: 0, incidents: 0 };
 
       setData({ stops, metrics, settings: settings || { cost_per_km: 0.45, cost_per_hour: 15.00 } });
       setFormSettings(settings || { cost_per_km: 0.45, cost_per_hour: 15.00 });
@@ -96,9 +93,9 @@ const AdminDashboard = () => {
       {/* Header Corporativo */}
       <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '40px'}}>
         <div style={{display: 'flex', alignItems: 'center', gap: '20px'}}>
-          <img src="/logo.png" alt="Kavana Logo" style={{height: '60px', width: 'auto'}} />
+          <img src="logo.png" alt="Kavana Logo" style={{height: '60px', width: 'auto'}} />
           <div>
-            <h1 style={{margin: 0, fontSize: '32px', fontWeight: '900', color: '#FF3D00', letterSpacing: '-1px'}}>KAVANA LOGISTICS</h1>
+            <h1 style={{margin: 0, fontSize: '32px', fontWeight: '900', color: '#FF3D00', letterSpacing: '-1px'}}>KAVANA ROUTEFLEET</h1>
             <h2 style={{margin: 0, fontSize: '14px', color: '#666', fontWeight: '800', letterSpacing: '2px'}}>TORRE DE CONTROL DE DESPACHO</h2>
           </div>
         </div>
@@ -174,7 +171,7 @@ const AdminDashboard = () => {
                 <td style={{padding: '20px'}}>{getStatusBadge(stop.status)}</td>
                 <td style={{padding: '20px', textAlign: 'right'}}>
                   {stop.pod_url && (
-                    <a href={stop.pod_url} target="_blank" rel="noreferrer" style={{
+                    <a href={stop.pod_url.startsWith('/') ? API_BASE + stop.pod_url : stop.pod_url} target="_blank" rel="noreferrer" style={{
                       backgroundColor: '#222', color: '#fff', textDecoration: 'none', padding: '8px 16px', 
                       borderRadius: '8px', fontSize: '12px', fontWeight: '800', display: 'inline-flex', alignItems: 'center', gap: '8px',
                       transition: 'background 0.2s', border: '1px solid #333'

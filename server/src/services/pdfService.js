@@ -8,7 +8,8 @@ import { fileURLToPath } from 'url';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-const PODS_DIR = path.join(__dirname, '../../pods');
+// PODs en ./pods relativo al cwd (server/) para consistencia en tests y Render.
+const PODS_DIR = path.join(process.cwd(), 'pods');
 
 function ensureDir(dir) {
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });

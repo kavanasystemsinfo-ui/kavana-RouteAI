@@ -1,81 +1,106 @@
-// Capa de datos KAVANA RouteFleet (SQLite).
-// Esquema y acceso a paradas, incidencias, ajustes OPEX y PODs.
+// Capa de datos KAVANA RouteFleet (store en archivo JSON).
+// Sustituye a SQLite para despliegue sin compilacion nativa (Render free, etc).
+// Mantiene la MISMA interfaz que la version SQLite: initDb() y queries.*.
 
-import Database from 'better-sqlite3';
-import { fileURLToPath } from 'url';
+import fs from 'fs';
 import path from 'path';
+import { fileURLToPath } from 'url';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-const DEFAULT_DB = path.join(__dirname, '../../routefleet.db');
+const DEFAULT_DB = process.env.ROUTEFLEET_DB || path.join(__dirname, '../../routefleet.json');
 
-const SCHEMA = `
-CREATE TABLE IF NOT EXISTS stops (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  stop_number INTEGER,
-  address TEXT,
-  status TEXT DEFAULT 'pending',
-  signature TEXT,
-  receiver_name TEXT,
-  lat REAL,
-  lng REAL,
-  created_at TEXT DEFAULT (datetime('now'))
-);
-CREATE TABLE IF NOT EXISTS incidents (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  stop_id INTEGER,
-  type TEXT,
-  photo_data TEXT,
-  notes TEXT,
-  created_at TEXT DEFAULT (datetime('now'))
-);
-CREATE TABLE IF NOT EXISTS settings (
-  key TEXT PRIMARY KEY,
-  value TEXT
-);
-CREATE TABLE IF NOT EXISTS pods (
-  stop_id INTEGER PRIMARY KEY,
-  file_path TEXT,
-  created_at TEXT DEFAULT (datetime('now'))
-);
-`;
+function emptyStore() {
+  return {
+    stops: [],
+    incidents: [],
+    settings: { cost_per_km: 0.3, cost_per_hour: 15 },
+    pods: {}
+  };
+}
+
+function load(dbPath) {
+  try {
+    const raw = fs.readFileSync(dbPath, 'utf8');
+    return { ...emptyStore(), ...JSON.parse(raw) };
+  } catch {
+    return emptyStore();
+  }
+}
+
+function persist(dbPath, store) {
+  fs.writeFileSync(dbPath, JSON.stringify(store, null, 2));
+}
 
 export function initDb(dbPath = DEFAULT_DB) {
-  const db = new Database(dbPath);
-  db.exec(SCHEMA);
-  const count = db.prepare("SELECT COUNT(*) AS c FROM settings").get().c;
-  if (count === 0) {
-    const insert = db.prepare("INSERT INTO settings (key, value) VALUES (?, ?)");
-    insert.run('cost_per_km', '0.30');
-    insert.run('cost_per_hour', '15');
-  }
-  return db;
+  const store = load(dbPath);
+  // Asegura settings por defecto si faltan
+  if (typeof store.settings.cost_per_km !== 'number') store.settings.cost_per_km = 0.3;
+  if (typeof store.settings.cost_per_hour !== 'number') store.settings.cost_per_hour = 15;
+  persist(dbPath, store);
+
+  // Devuelve un objeto "db" con los metodos que espera queries (firmas iguales)
+  return {
+    _path: dbPath,
+    _store: store,
+    _save() {
+      persist(this._path, this._store);
+    },
+    nextStopId() {
+      const max = store.stops.reduce((m, s) => Math.max(m, s.id || 0), 0);
+      return max + 1;
+    }
+  };
 }
 
 export const queries = {
-  listStops: (db) => db.prepare('SELECT * FROM stops ORDER BY stop_number ASC').all(),
-  addStop: (db, stopNumber, address, status = 'pending') =>
-    db.prepare('INSERT INTO stops (stop_number, address, status) VALUES (?, ?, ?)').run(stopNumber, address, status),
+  listStops: (db) => db._store.stops.slice().sort((a, b) => (a.stop_number || 0) - (b.stop_number || 0)),
+  addStop: (db, stopNumber, address, status = 'pending') => {
+    const id = db.nextStopId();
+    db._store.stops.push({
+      id,
+      stop_number: stopNumber,
+      address,
+      status,
+      created_at: new Date().toISOString()
+    });
+    db._save();
+    return id;
+  },
   updateStop: (db, id, fields) => {
-    const keys = Object.keys(fields);
-    if (keys.length === 0) return;
-    const set = keys.map((k) => `${k} = ?`).join(', ');
-    db.prepare(`UPDATE stops SET ${set} WHERE id = ?`).run(...keys.map((k) => fields[k]), id);
+    const stop = db._store.stops.find((s) => s.id === id);
+    if (!stop) return;
+    Object.assign(stop, fields);
+    db._save();
   },
-  deleteStop: (db, id) => db.prepare('DELETE FROM stops WHERE id = ?').run(id),
-  clearStops: (db) => db.prepare('DELETE FROM stops').run(),
-  addIncident: (db, stopId, type, photo, notes) =>
-    db.prepare('INSERT INTO incidents (stop_id, type, photo_data, notes) VALUES (?, ?, ?, ?)').run(stopId, type, photo, notes || ''),
-  setSetting: (db, key, value) =>
-    db.prepare('INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = ?').run(key, String(value), String(value)),
-  getSettings: (db) => {
-    const rows = db.prepare('SELECT * FROM settings').all();
-    const s = {};
-    rows.forEach((r) => (s[r.key] = parseFloat(r.value) || 0));
-    return s;
+  deleteStop: (db, id) => {
+    db._store.stops = db._store.stops.filter((s) => s.id !== id);
+    db._save();
   },
-  savePod: (db, stopId, filePath) =>
-    db.prepare('INSERT OR REPLACE INTO pods (stop_id, file_path) VALUES (?, ?)').run(stopId, filePath)
+  clearStops: (db) => {
+    db._store.stops = [];
+    db._save();
+  },
+  addIncident: (db, stopId, type, photo, notes) => {
+    db._store.incidents.push({
+      id: db._store.incidents.length + 1,
+      stop_id: stopId,
+      type,
+      photo_data: photo || null,
+      notes: notes || '',
+      created_at: new Date().toISOString()
+    });
+    db._save();
+  },
+  setSetting: (db, key, value) => {
+    db._store.settings[key] = parseFloat(value);
+    db._save();
+  },
+  getSettings: (db) => ({ ...db._store.settings }),
+  savePod: (db, stopId, filePath) => {
+    db._store.pods[stopId] = filePath;
+    db._save();
+  }
 };
 
 export default { initDb, queries };

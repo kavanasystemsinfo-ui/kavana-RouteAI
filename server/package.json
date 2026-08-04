@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "private": true,
   "type": "module",
-  "description": "KAVANA RouteFleet — backend de logística de campo (API REST, SQLite, OCR, IA de rutas, POD)",
+  "description": "KAVANA RouteFleet — backend de logística de campo (API REST, store JSON, OCR, IA de rutas, POD)",
   "main": "src/index.js",
   "scripts": {
     "start": "node src/index.js",
@@ -13,7 +13,6 @@
   "dependencies": {
     "express": "^4.19.2",
     "multer": "^1.4.5-lts.1",
-    "pdfkit": "^0.15.0",
-    "better-sqlite3": "^11.3.0"
+    "pdfkit": "^0.15.0"
   }
 }

@@ -58,11 +58,11 @@ const SignaturePad = ({ onSave, onClose }) => {
       </div>
 
       {/* Canvas de Firma */}
-      <div style={{flex: 1, position: 'relative', backgroundColor: '#111', borderRadius: '16px', border: '1px solid #222', overflow: 'hidden', marginBottom: '20px'}}>
-        <label style={{position: 'absolute', top: '16px', left: '16px', fontSize: '10px', fontWeight: '900', color: '#333', pointerEvents: 'none'}}>FIRMA DEL RECEPTOR AQUÍ</label>
+      <div style={{flex: 1, position: 'relative', backgroundColor: '#fff', borderRadius: '16px', border: '1px solid #222', overflow: 'hidden', marginBottom: '20px'}}>
+        <label style={{position: 'absolute', top: '16px', left: '16px', fontSize: '10px', fontWeight: '900', color: '#999', pointerEvents: 'none'}}>FIRMA DEL RECEPTOR AQUÍ</label>
         <SignatureCanvas 
           ref={sigCanvas}
-          penColor="#fff"
+          penColor="#000"
           canvasProps={{
             style: { width: '100%', height: '100%', cursor: 'crosshair' }
           }}

@@ -4,7 +4,7 @@
 **Division:** Kavana Systems — Logistica de campo para empresas de reparto
 **Fecha:** 2026-07-13
 **Autor del informe:** Hermes Agent (perfil jobhunter)
-**Estado:** v1.0 — Backend funcional, 19 tests automatizados, CI activa
+**Estado:** v1.0 — Backend funcional, 21 tests backend + 2 frontend, CI activa (tests + build)
 **Repositorio:** https://github.com/kavanasystemsinfo-ui/kavana-RouteFleet
 
 ---
@@ -13,20 +13,22 @@
 
 KAVANA RouteFleet es una aplicacion de gestion de logistica de campo disenada para
 empresas de reparto y distribucion. Resuelve un
-problema industrial real: el reparto de materiales desde fabrica hasta obra, con
+problema industrial real: la ultima milla de reparto, con
 control de costes OPEX, OCR de albaranes y prueba de entrega (POD) digital.
 
 Este informe unifica toda la documentacion del repositorio GitHub y anade un analisis
 tecnico de auditoria orientado a revision por consultoria IT o Tech Lead.
 
 **Puntos destacables tras la profesionalizacion de 2026-07-13:**
-- El backend estaba incompleto (servicios referenciados pero ausentes). Se reconstruyo
-  con TDD: 19 tests verdes, servidor arranca y todos los endpoints responden.
-- Se cerro la funcionalidad nucleo de logistica: POD en PDF con firma + geolocalizacion.
+- El backend estaba incompleto (servicios referenciados pero ausentes) y tenia un bug
+  critico de import (ruta rota de db.js) que impedía arrancar. Se reconstruyo con TDD:
+  21 tests backend verdes + 2 frontend, servidor arranca y todos los endpoints responden.
+- Se cerro la funcionalidad nucleo de logistica de extremo a extremo: POD en PDF con
+  firma + geolocalizacion, descargable desde el movil del operario y la Torre de Control.
 - Se anadio fallback de rutas: si la IA (DeepSeek/OpenRouter) cae, un algoritmo greedy
   local garantiza el reparto. El sistema nunca se detiene.
-- CI en GitHub Actions corre tests + build en cada push.
-- Marca unificada: KAVANA Logistics -> KAVANA ROUTEFLEET.
+- CI en GitHub Actions corre tests backend + tests frontend + build en cada push.
+- Marca unificada: KAVANA Logistics -> KAVANA ROUTEFLEET (reorientado a reparto general).
 
 ---
 
@@ -41,7 +43,7 @@ tecnico de auditoria orientado a revision por consultoria IT o Tech Lead.
 | OCR | Tesseract.js | Opcional, degrada a entrada manual |
 | PDF | pdfkit | Generacion de POD |
 | IA Rutas | DeepSeek v3 via OpenRouter | Con fallback greedy local |
-| Tests | node --test (nativo) | 19 tests, sin frameworks externos |
+| Tests | node --test (backend) + Vitest (frontend) | 21 backend + 2 frontend |
 | CI | GitHub Actions | Tests backend + build cliente |
 
 ---
@@ -98,7 +100,7 @@ build del cliente en cada push a main.
    compilacion con Tailwind en local. Estetica "Premium Tactical" estable sin dependencias.
 
 3. OCR con filtrado logico: post-procesamiento que limpia simbolos de tabla y filtra
-   palabras clave industriales (Puntales, Largueros). Direccion limpia para GPS al 95%.
+   terminos de envio (bultos, cajas, palets). Direccion limpia para GPS al 95%.
 
 4. Mapa en vivo "Zero-Cost": iframe de Google Maps con filtros CSS (invert/hue-rotate)
    para simular Dark Mode sin tarjeta de credito ni API de paga.
@@ -153,15 +155,17 @@ historico de rutas por operario, notificaciones push, tests del cliente.
 | DELETE | /api/stops/:id | Borra parada |
 | DELETE | /api/stops | Limpia ruta |
 | POST | /api/stops/:id/incident | Registra incidencia |
+| GET | /api/stops/:id/pod | URL del POD (PDF) si existe |
 
-## 7.2 Cobertura de tests (19/19 verdes)
+## 7.2 Cobertura de tests (23/23 verdes: 21 backend + 2 frontend)
 
-- addressCleaner: limpieza de simbolos y materiales industriales.
+- addressCleaner: limpieza de simbolos y terminos de envio.
 - routeOptimizer: orden greedy deterministico (empieza en origen, visita todas).
 - aiService: fallback a greedy cuando no hay API key.
 - db: altas/bajas/consultas SQLite en :memory:.
 - pdfService: genera PDF valido (%PDF-) con firma y geo.
 - ocrService: procesa imagen sin fallar si Tesseract ausente.
+- api (integracion): settings, CRUD de paradas y flujo POD end-to-end (crear -> entregar -> descargar).
 
 ## 7.3 Verificacion de arranque (real, no asumido)
 
@@ -179,16 +183,17 @@ Fortalezas que un Tech Lead valora:
 2. Mentalidad de negocio: modelo OPEX real, no solo codigo.
 3. Uso eficiente de IA: DeepSeek por conocimiento semantico a coste minimo.
 4. Resiliencia: fallback greedy -> el reparto nunca se detiene.
-5. TDD + CI: 19 tests, pipeline automatico. Disciplina senior autodidacta.
+4. TDD + CI: 21 tests backend + 2 frontend, pipeline automatico. Disciplina senior autodidacta.
 
 Puntos a madurar (con propuesta concreta):
 1. Multi-tenant: SQLite actual es mono-tenant. Proximo paso: aislamiento por cliente.
 2. Persistencia de costes: OPEX en SQLite local; para consultoria cloud habria que
    mover a Postgres. YAGNI por ahora (uso local).
-3. Cobertura de tests del cliente: anadir React Testing Library / Vitest.
+3. Cobertura de tests del cliente: añadida (Vitest + Testing Library, 2 tests de App);
+   ampliar a SignaturePad/Scanner en siguientes iteraciones.
 4. API key en servidor: OPENROUTER_API_KEY via entorno, no hardcodeado (correcto).
-5. POD: el PDF se genera y guarda; falta servirlo como descarga en el frontend
-   (ruta /pods/:file ya contemplada en api.js, pendiente de UI).
+5. POD: CERRADO. PDF se genera, se guarda y se sirve como descarga tanto en el movil del
+   operario (App.jsx) como en la Torre de Control (AdminDashboard.jsx). Endpoint GET /api/stops/:id/pod.
 
 ---
 
