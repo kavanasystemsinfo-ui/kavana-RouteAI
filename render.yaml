@@ -7,7 +7,7 @@ services:
     repo: https://github.com/kavanasystemsinfo-ui/kavana-RouteFleet
     rootDir: server
     branch: main
-    buildCommand: npm install
+    buildCommand: apt-get update && apt-get install -y poppler-utils && npm install
     startCommand: node src/index.js
     plan: free
     healthCheckPath: /api/settings

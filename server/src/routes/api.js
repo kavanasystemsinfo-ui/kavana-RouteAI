@@ -8,6 +8,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import dbModule from '../db.js';
 import { signToken, requireAuth } from '../auth.js';
+import { cleanAddress } from '../services/addressCleaner.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -27,12 +28,8 @@ export default function apiRouter(db) {
     const proto = req.headers['x-forwarded-proto'] || req.protocol || 'https';
     return `${proto}://${host}${relPath}`;
   };
-  // Multer para subida de imagenes (incidentes)
-  const storage = multer.diskStorage({
-    destination: (req, file, cb) => cb(null, 'uploads/'),
-    filename: (req, file, cb) => cb(null, Date.now() + '-' + file.originalname)
-  });
-  const upload = multer({ storage });
+  // Multer para subida de imagenes - usa memoria en vez de disco (Render free no tiene disco persistente)
+  const upload = multer({ storage: multer.memoryStorage() });
 
   // Dashboard metrics (Torre de Control) — solo oficina
   router.get('/dashboard-data', requireAuth(['office']), (req, res) => {
@@ -163,14 +160,54 @@ export default function apiRouter(db) {
     }
   });
 
-  // Procesar OCR (Automatico)
+  // --- OCR / Subida de albaranes ---
+  // Acepta imágenes (JPG/PNG), PDFs y CSV
   router.post('/ocr', upload.single('image'), async (req, res) => {
     try {
-      if (!req.file) return res.status(400).json({ error: 'Imagen requerida' });
-      await processManifestImage(req.file.path);
-      res.json({ success: true });
+      if (!req.file) return res.status(400).json({ error: 'Archivo requerido (imagen, PDF o CSV)' });
+      
+      const buffer = req.file.buffer;
+      const fileType = req.file.mimetype;
+      const fileTypeFlag = req.body.type || '';
+      
+      const isPdf = fileType === 'application/pdf' || fileTypeFlag === 'pdf';
+      const isCsv = fileType === 'text/csv' || fileTypeFlag === 'csv';
+      
+      // Guardar buffer temporal para procesamiento
+      const tmpPath = `/tmp/ocr_${Date.now()}_${req.file.originalname || 'file'}`;
+      fs.writeFileSync(tmpPath, buffer);
+      
+      const result = await processManifestImage(tmpPath, isPdf, isCsv);
+      
+      // Extraer TODAS las direcciones encontradas
+      let addresses = [];
+      if (result.raw) {
+        // Buscar todas las líneas que contienen direcciones
+        const lines = result.raw.split('\n');
+        for (const line of lines) {
+          const addr = cleanAddress(line.trim());
+          if (addr && addr.length > 5) {
+            addresses.push(addr);
+          }
+        }
+      }
+      
+      // Limpiar archivo temporal
+      try { fs.unlinkSync(tmpPath); } catch (e) {}
+      
+      if (addresses.length > 0) {
+        res.json({ 
+          success: true, 
+          addresses,
+          detectedAddress: addresses[0], // Primera dirección para compatibilidad
+          totalAddresses: addresses.length
+        });
+      } else {
+        res.json({ success: false, error: 'No se detectó dirección en el archivo' });
+      }
     } catch (error) {
-      res.status(500).json({ error: error.message });
+      console.error('Error OCR:', error);
+      res.status(500).json({ error: error.message || 'Error interno procesando archivo' });
     }
   });
 

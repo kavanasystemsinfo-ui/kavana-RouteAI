@@ -33,6 +33,11 @@ jobs:
           npm install
           npm run build
 
+
+      - name: Cache Bust (evitar CDN cache)
+        run: |
+          echo "window.BUILD_TIMESTAMP='1784372441';" >> client/dist/timestamp.js
+          echo "window.BUILD_TIMESTAMP='1784372441';" >> client-admin/dist/timestamp.js
       - name: Ensamblar sitio combinado en gh-pages-admin
         run: |
           rm -rf gh-pages-admin && mkdir -p gh-pages-admin/app gh-pages-admin/download
