@@ -1,6 +1,5 @@
 # Render deployment — KAVANA Route AI (backend API)
-# Node buildpack (no Docker) para evitar problemas con better-sqlite3.
-# Base de datos: Supabase PostgreSQL (ver DATABASE_URL)
+# Node buildpack (no Docker). Base de datos: Neon PostgreSQL (ver DATABASE_URL)
 services:
   - type: web
     name: kavana-routeai-api
@@ -31,10 +30,6 @@ services:
         value: require
       - key: JWT_SECRET
         generateValue: true
-      - key: OPENROUTER_API_KEY
-        sync: false  # API key de OpenRouter — configurar manualmente
-      - key: OPENROUTER_MODEL
-        value: "nvidia/nemotron-3-super-120b-a12b:free"
       - key: OFFICE_PIN
         value: "0000"  # CAMBIAR en producción
       - key: CORS_ORIGINS

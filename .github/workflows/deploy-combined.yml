@@ -40,17 +40,11 @@ jobs:
           echo "window.BUILD_TIMESTAMP='1784372441';" >> client-admin/dist/timestamp.js
       - name: Ensamblar sitio combinado en gh-pages-admin
         run: |
-          rm -rf gh-pages-admin && mkdir -p gh-pages-admin/app gh-pages-admin/download
+          rm -rf gh-pages-admin && mkdir -p gh-pages-admin/app
           # Panel en la raiz del dominio
           cp -r client-admin/dist/* gh-pages-admin/
           # App del repartidor en /app
           cp -r client/dist/* gh-pages-admin/app/
-          # Pagina de descarga (APK + PWA iPhone + QR) en /download
-          cp -r client-admin/download/* gh-pages-admin/download/
-          # Preserva el APK ya publicado por build-apk (si existe)
-          if curl -sf -o /tmp/routeai.apk https://routeai.kavanasystems.com/download/routeai.apk; then
-            cp /tmp/routeai.apk gh-pages-admin/download/routeai.apk
-          fi
           # Mantiene el custom domain vivo
           echo "routeai.kavanasystems.com" > gh-pages-admin/CNAME
           touch gh-pages-admin/.nojekyll

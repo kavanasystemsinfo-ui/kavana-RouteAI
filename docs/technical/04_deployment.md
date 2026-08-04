@@ -7,8 +7,7 @@
 | Backend API (Node/Express) | Render | https://kavana-routeai-api.onrender.com |
 | Base de datos PostgreSQL | Neon (serverless) | — |
 | Panel oficinas "Torre de Control" | GitHub Pages | https://www.routeai.kavanasystems.com |
-| App del repartidor (React PWA) | GitHub Pages (/app) | https://www.routeai.kavanasystems.com/app |
-| APK Android | GitHub Pages (/download) | https://www.routeai.kavanasystems.com/download/routeai.apk |
+| App del repartidor (React web) | GitHub Pages (/app) | https://www.routeai.kavanasystems.com/app |
 
 ---
 
@@ -117,12 +116,11 @@ Sin este secret, los frontends apuntan a la API antigua. Cambiarlo requiere un n
 |----------|---------|----------|
 | `ci.yml` | Push/PR a main | Tests backend + tests frontend + build frontend |
 | `deploy-combined.yml` | Push a main | Build + deploy Torre Control + App a Pages |
-| `build-apk.yml` | Manual | Compila APK Android firmado |
 
 ### Tests
 ```bash
-cd server && npm test    # 40+ tests (todos async/await compatibles PG y JSON)
-cd client && npm test    # 2 tests
+cd server && npm test    # 43 tests (todos async/await compatibles PG y JSON)
+cd client && npm test    # 3 tests
 cd client && npm run build  # Build verificado
 ```
 

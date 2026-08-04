@@ -12,7 +12,7 @@
 RouteAI tiene:
 - **Backend API** (Node.js + Express) → necesita un servidor persistente
 - **Torre de Control** (React + Vite) → SPA estática
-- **App repartidor** (React + Vite + PWA) → SPA estática
+- **App repartidor** (React + Vite + web responsive) → SPA estática
 
 Se evaluaron distintas combinaciones de hosting.
 

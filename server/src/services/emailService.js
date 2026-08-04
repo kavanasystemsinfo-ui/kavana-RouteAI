@@ -5,7 +5,7 @@
 // consola (modo dev) en lugar de enviarlo.
 import nodemailer from 'nodemailer';
 
-// URL base del producto (donde vive el APK y la PWA).
+// URL base del producto (donde vive la web app del repartidor).
 const SITE_BASE = process.env.SITE_BASE || 'https://routeai.kavanasystems.com';
 
 function buildTransporter() {
@@ -22,7 +22,7 @@ function buildTransporter() {
 }
 
 // Plantilla HTML profesional de bienvenida al repartidor.
-export function buildWelcomeHtml({ name, pin, appUrl, apkUrl, downloadUrl }) {
+export function buildWelcomeHtml({ name, pin, appUrl, downloadUrl }) {
   const qr = `https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(downloadUrl)}`;
   return `
   <div style="font-family:system-ui,Segoe UI,Arial,sans-serif;max-width:560px;margin:0 auto;color:#1a2230;">
@@ -39,23 +39,23 @@ export function buildWelcomeHtml({ name, pin, appUrl, apkUrl, downloadUrl }) {
         App: <a href="${appUrl}" style="color:#2563eb;">${appUrl}</a></p>
       </div>
 
-      <p style="margin:0 0 10px;font-weight:600;">Descarga la app</p>
+      <p style="margin:0 0 10px;font-weight:600;">Accede desde tu movil</p>
       <table role="presentation" width="100%" cellspacing="0" cellpadding="0">
         <tr>
           <td align="center">
-            <a href="${apkUrl}" style="display:inline-block;background:#2563eb;color:#fff;padding:13px 26px;border-radius:8px;text-decoration:none;font-weight:600;">Descargar APK (Android)</a>
+            <a href="${appUrl}" style="display:inline-block;background:#2563eb;color:#fff;padding:13px 26px;border-radius:8px;text-decoration:none;font-weight:600;">Abrir la app</a>
           </td>
         </tr>
       </table>
       <p style="margin:10px 0 0;font-size:13px;color:#6b7682;">iPhone/iPad: abre <a href="${appUrl}" style="color:#2563eb;">${appUrl}</a> y pulsa "Anadir a pantalla de inicio".</p>
 
       <div style="text-align:center;margin:20px 0 6px;">
-        <img src="${qr}" alt="QR descarga" width="160" height="160" style="border:1px solid #d9dee3;border-radius:8px;">
-        <p style="font-size:12px;color:#6b7682;margin:6px 0 0;">Escanea para descargar desde el movil</p>
+        <img src="${qr}" alt="QR de acceso" width="160" height="160" style="border:1px solid #d9dee3;border-radius:8px;">
+        <p style="font-size:12px;color:#6b7682;margin:6px 0 0;">Escanea para abrir la app en el movil</p>
       </div>
 
       <p style="font-size:12px;color:#6b7682;margin:18px 0 0;border-top:1px solid #d9dee3;padding-top:12px;">
-        Instala el APK desde fuera de Google Play: en tu movil, ajustes → permite "instalar apps desconocidas" para el navegador y pulsa el enlace.
+        Es una web app: se anade a la pantalla de inicio y se abre como una app mas.
       </p>
     </div>
   </div>`;
@@ -65,9 +65,8 @@ export function buildWelcomeHtml({ name, pin, appUrl, apkUrl, downloadUrl }) {
 export async function sendDriverWelcome({ name, email, pin }) {
   if (!email) return { sent: false, dev: false, reason: 'no-email' };
   const appUrl = `${SITE_BASE}/app`;
-  const apkUrl = `${SITE_BASE}/download/routeai.apk`;
-  const downloadUrl = `${SITE_BASE}/download`;
-  const html = buildWelcomeHtml({ name, pin, appUrl, apkUrl, downloadUrl });
+  const downloadUrl = `${SITE_BASE}/app`;
+  const html = buildWelcomeHtml({ name, pin, appUrl, downloadUrl });
   const from = process.env.SMTP_FROM || process.env.SMTP_USER || 'no-reply@routeai.kavanasystems.com';
 
   const transporter = buildTransporter();

@@ -31,9 +31,9 @@ Centralizar los costes por tipo de combustible en la **sección "Costes"** de la
 Torre de Control:
 
 1. El panel de Costes muestra 4 inputs (uno por tipo de combustible)
-2. Cada conductor solo selecciona su **tipo de combustible** en su perfil
+2. El supervisor asigna a cada repartidor su **tipo de combustible** desde su perfil en la Torre de Control
 3. El sistema calcula el OPEX usando: `coste_del_tipo_asignado × km_reales`
-4. Si el conductor no tiene tipo asignado, usa el coste genérico (0,30€)
+4. Si el repartidor no tiene tipo asignado, usa el coste genérico (0,30€)
 
 ## Alternativas evaluadas
 
@@ -46,8 +46,8 @@ Torre de Control:
 ## Consecuencias
 
 **Positivas:**
-- Un cambio en Costes actualiza a todos los conductores de ese combustible
-- El conductor solo elige tipo, no tiene que saber su coste/km
+- Un cambio en Costes actualiza a todos los repartidores de ese combustible
+- El repartidor no necesita saber nada de costes: el supervisor le asigna el tipo
 - Fácil de mantener cuando cambian los precios
 
 **Negativas:**

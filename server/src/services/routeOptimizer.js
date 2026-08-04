@@ -29,7 +29,7 @@ function totalDistance(route, origin) {
 }
 
 // Vecino más cercano (greedy) — ruta inicial rápida
-function greedyRoute(stops, origin) {
+export function greedyRoute(stops, origin) {
   if (!stops || stops.length === 0) return [];
   const remaining = [...stops];
   const route = [];

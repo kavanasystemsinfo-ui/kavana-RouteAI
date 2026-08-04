@@ -1,7 +1,7 @@
 # Panel de Oficinas — Torre de Control
 
 React (carpeta `client-admin/`). Desplegado en GitHub Pages en la rama
-`gh-pages-admin`, con dominio propio `routefleet.kavanasystems.com` (raíz `/`).
+`gh-pages-admin`, con dominio propio `routeai.kavanasystems.com` (raíz `/`).
 Estética backoffice, sidebar + tablas densas (pensado para escritorio).
 
 ## Tema (Kavana / Clásico)
@@ -28,7 +28,7 @@ limpia la sesión. PIN por defecto `0000` (cambiable en Render con
 - **Incidencias**: lista de incidencias reportadas por los repartidores.
 
 ## Variables
-- `VITE_API_BASE` (build-time) → `https://routefleet-api.onrender.com`
+- `VITE_API_BASE` (build-time) → `https://kavana-routeai-api.onrender.com`
 
 ## Build
 ```bash

@@ -157,7 +157,7 @@ const styles = {
 
 const API_BASE = (import.meta.env.VITE_API_BASE)
   ? `${import.meta.env.VITE_API_BASE.replace(/\/$/, '')}/api`
-  : 'https://routeai-api.onrender.com/api';
+  : 'https://kavana-routeai-api.onrender.com/api';
 
 function App() {
   const [activeTab, setActiveTab] = useState('map');
@@ -184,27 +184,6 @@ function App() {
   // cuando recibe el albarán, aunque sea el día antes. Persiste en localStorage.
   const [originText, setOriginText] = useState(() => localStorage.getItem('routeai_origin') || '');
   const [optimizing, setOptimizing] = useState(false);
-
-  // Version check: avisa al repartidor si hay una version nueva del APK.
-  const APP_VERSION = '1.0.0';
-  const [updateAvailable, setUpdateAvailable] = useState(false);
-  const [latestVersion, setLatestVersion] = useState('');
-  useEffect(() => {
-    let cancelled = false;
-    fetch(import.meta.env.BASE_URL + 'version.json', { cache: 'no-store' })
-      .then(r => r.ok ? r.json() : null)
-      .then(data => {
-        if (cancelled || !data || !data.version) return;
-        const cmp = (a, b) => a.split('.').map(Number).reduce((acc, n, i) => acc + n * Math.pow(1000, 2 - i), 0)
-          - b.split('.').map(Number).reduce((acc, n, i) => acc + n * Math.pow(1000, 2 - i), 0);
-        if (cmp(data.version, APP_VERSION) > 0) {
-          setLatestVersion(data.version);
-          setUpdateAvailable(true);
-        }
-      })
-      .catch(() => {});
-    return () => { cancelled = true; };
-  }, []);
 
   const fetchStops = async () => {
     try {
@@ -439,8 +418,7 @@ function App() {
       });
       const data = await res.json();
       if (data.success) {
-        const engineLabel = data.engine === 'ai' ? 'IA' : 'Algoritmo local';
-        let msg = `Ruta optimizada con ${engineLabel}. Orden guardado en el servidor.`;
+        let msg = 'Ruta optimizada (algoritmo 2-opt local). Orden guardado en el servidor.';
         if (data.unlocated && data.unlocated.length > 0) {
           msg += `\n\n${data.unlocated.length} dirección(es) no se pudieron geocodificar y se dejaron al final.`;
         }
@@ -471,12 +449,6 @@ function App() {
 
   return (
     <div style={styles.container}>
-      {updateAvailable && (
-        <div style={{background: '#f8cd00', color: '#000', padding: '10px 16px', display: 'flex', alignItems: 'center', gap: '10px', fontSize: '13px', fontWeight: '800'}}>
-          <Download size={18} />
-          <span>Hay una nueva versión ({latestVersion}). <a href="/download/routeai.apk" style={{color: '#000', textDecoration: 'underline'}}>Descárgala aquí</a>.</span>
-        </div>
-      )}
       {showDriverGate && (
         <div style={{position: 'fixed', inset: 0, backgroundColor: '#000', zIndex: 20000, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '24px', fontFamily: "'Inter', sans-serif"}}>
           <img src="logo.png" alt="Kavana Route AI" style={{height: '80px', marginBottom: '16px', objectFit: 'contain'}} />
@@ -486,7 +458,7 @@ function App() {
           </div>
           <h2 style={{color: '#fff', fontSize: '13px', fontWeight: '900', letterSpacing: '1px', marginBottom: '8px'}}>IDENTIFICACIÓN DE REPARTIDOR</h2>
           <p style={{color: '#666', fontSize: '12px', marginBottom: '24px', textAlign: 'center'}}>Introduce tu PIN para empezar. Se guardará en este dispositivo.</p>
-          <form onSubmit={(e) => { e.preventDefault(); handleDriverLogin(e.target.pin.value); }} style={{display: 'flex', flexDirection: 'column', gap: '12px', width: '100%', maxWidth: '280px'}}>
+          <form onSubmit={(e) => { e.preventDefault(); handleDriverLogin(new FormData(e.target).get('pin') || ''); }} style={{display: 'flex', flexDirection: 'column', gap: '12px', width: '100%', maxWidth: '280px'}}>
             <input name="pin" type="password" inputMode="numeric" autoFocus placeholder="••••" style={{padding: '18px', backgroundColor: '#111', border: '1px solid #222', borderRadius: '12px', color: '#fff', fontSize: '24px', textAlign: 'center', letterSpacing: '8px', fontWeight: '900', outline: 'none'}} />
             <button type="submit" style={{padding: '18px', backgroundColor: '#f8cd00', color: '#000', border: 'none', borderRadius: '12px', fontWeight: '900', fontSize: '14px', cursor: 'pointer'}}>ENTRAR</button>
           </form>
@@ -685,7 +657,7 @@ function App() {
                   disabled={optimizing}
                   style={{...styles.btnPrimary, marginTop: '12px', backgroundColor: optimizing ? '#663300' : '#f8cd00', fontSize: '13px', padding: '14px'}}
                 >
-                  {optimizing ? 'OPTIMIZANDO...' : 'OPTIMIZAR RUTA (IA)'}
+                  {optimizing ? 'OPTIMIZANDO...' : 'OPTIMIZAR RUTA'}
                 </button>
               </div>
 

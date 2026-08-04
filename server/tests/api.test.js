@@ -170,11 +170,10 @@ test('POST /api/drivers con email dispara bienvenida (modo dev sin SMTP)', async
   } finally { server.close(); }
 });
 
-test('emailService construye HTML de bienvenida con enlaces de descarga', async () => {
+test('emailService construye HTML de bienvenida con enlaces de la app', async () => {
   const { buildWelcomeHtml } = await import('../src/services/emailService.js');
-  const html = buildWelcomeHtml({ name: 'Pepe', pin: '4321', appUrl: 'https://routeai.kavanasystems.com/app', apkUrl: 'https://routeai.kavanasystems.com/download/routeai.apk', downloadUrl: 'https://routeai.kavanasystems.com/download' });
-  assert.ok(html.includes('routeai.kavanasystems.com/app'), 'debe enlazar la PWA');
-  assert.ok(html.includes('/download/routeai.apk'), 'debe enlazar el APK');
+  const html = buildWelcomeHtml({ name: 'Pepe', pin: '4321', appUrl: 'https://routeai.kavanasystems.com/app', downloadUrl: 'https://routeai.kavanasystems.com/app' });
+  assert.ok(html.includes('routeai.kavanasystems.com/app'), 'debe enlazar la app');
   assert.ok(html.includes('4321'), 'debe incluir el PIN');
   assert.ok(html.includes('api.qrserver.com'), 'debe incluir QR');
 });

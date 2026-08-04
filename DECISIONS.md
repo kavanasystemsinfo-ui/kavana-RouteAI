@@ -85,7 +85,7 @@ Se añadió limpieza de prefijos numéricos (números de parada) en las líneas 
 
 ### Decisión
 El frontend (Torre de Control + app repartidor) se despliega con GitHub Actions a GitHub Pages.
-El backend (API NestJS) se despliega en Render.
+El backend (API Express) se despliega en Render.
 
 ### Por qué
 - Los frontends son SPAs puras (React + Vite) → GitHub Pages es suficiente y gratuito
@@ -174,12 +174,12 @@ El panel de incidencias cargaba desde `stops?status=incident` (paradas filtradas
 | Componente | Tecnología |
 |---|---|
 | Frontend (Torre de Control) | React 18 + Vite |
-| Frontend (App repartidor) | React 18 + Vite + PWA |
-| Backend API | Node.js + Express + NestJS |
-| Base de datos | PostgreSQL (Neon/Supabase) |
+| Frontend (App repartidor) | React 18 + Vite + web responsive |
+| Backend API | Node.js + Express |
+| Base de datos | PostgreSQL (Neon) + JSON fallback local |
 | Geocodificación | Nominatim (OpenStreetMap) |
 | Optimización rutas | 2-opt local (sin IA) |
-| OCR | pdftotext (poppler-utils) |
+| OCR | Tesseract.js + pdftotext (poppler-utils) |
 | Hosting frontend | GitHub Pages |
 | Hosting backend | Render |
 | CI/CD | GitHub Actions |

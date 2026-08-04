@@ -3,7 +3,7 @@
 ## Principio rector
 El VPS (167.233.97.71) es **solo entorno de desarrollo y documentación**. Los
 proyectos terminados viven fuera del VPS, igual que CleanStock:
-- Backend → **Render** (servicio `routefleet-api`, Free).
+- Backend → **Render** (servicio `kavana-routeai-api`, Free).
 - Frontends → **GitHub Pages** (sin servidor propio, HTTPS automático).
 
 ## Componentes
@@ -11,21 +11,21 @@ proyectos terminados viven fuera del VPS, igual que CleanStock:
 ```
 ┌─────────────────────┐         ┌──────────────────────────┐
 │ App Repartidor      │  HTTPS  │ Backend API (Render)     │
-│ (routefleet.        │ ──────▶ │ Express + store JSON     │
+│ (routeai.           │ ──────▶ │ Express + PostgreSQL     │
 │  kavanasystems.com/ │ ◀────── │ /api/* , /pods/*          │
 │  app)               │         └──────────────────────────┘
 └─────────────────────┘                  ▲
 ┌─────────────────────┐                  │
 │ Panel Oficinas      │  HTTPS           │
 │ Torre de Control    │ ─────────────────┘
-│ (routefleet.        │
+│ (routeai.           │
 │  kavanasystems.com/ │
 └─────────────────────┘
 ```
 
 ## Datos
-- Store JSON en disco (`routefleet.json` en el server de Render). Sin SQLite
-  para evitar compilación nativa en Render Free. Listo para migrar a Postgres.
+- **PostgreSQL (Neon)** en producción, con fallback a JSON store en local
+  (`routeai.json`). Sin SQLite: se evitó la compilación nativa en Render Free.
 - PODs: PDFs generados con pdfkit en `./pods`. En Render son efímeros tras
   spin-down; el endpoint `GET /api/stops/:id/pod` los regenera al vuelo si la
   parada tiene firma guardada.

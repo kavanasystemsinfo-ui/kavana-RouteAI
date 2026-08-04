@@ -6,19 +6,18 @@ generación de POD (Proof of Delivery) en PDF.
 
 ## Stack
 - Express 4
-- better-sqlite3 (almacenamiento local)
 - multer (subida de imágenes OCR)
 - pdfkit (generación de POD)
 - pg (PostgreSQL — Neon en producción, JSON fallback en local)
+- tesseract.js (OCR de imágenes, opcional)
 - Node 20 (`node --test` para tests, sin dependencias extra)
 
 ## Puertos
 - API REST: `5001`
 
 ## Variables de entorno
-- `OPENROUTER_API_KEY` (opcional): si existe, la optimización de rutas usa
-  DeepSeek v3 vía OpenRouter. Si falta o falla, se aplica un algoritmo greedy
-  local (vecino más cercano) — el reparto nunca se detiene.
+- `PGHOST`/`PGUSER`/`PGPASSWORD`/`PGDATABASE` (producción): PostgreSQL en Neon.
+  Sin ellas, el server usa el JSON store local.
 - `PORT` (opcional, defecto 5001)
 
 ## Scripts
@@ -30,13 +29,12 @@ generación de POD (Proof of Delivery) en PDF.
 ```
 src/
   index.js              # arranque Express + inyección de DB
-  db.js                 # esquema SQLite + queries (mejor-sqlite3)
+  db.js                 # capa de datos (PostgreSQL en prod, JSON en local)
   routes/api.js         # endpoints REST
   services/
     addressCleaner.js   # limpieza semántica de direcciones OCR
     ocrService.js       # OCR de albaranes (Tesseract opcional)
-    aiService.js        # optimización de rutas (IA + fallback greedy)
-    routeOptimizer.js   # algoritmo greedy de vecino más cercano
+    routeOptimizer.js   # algoritmo greedy + 2-opt de rutas (sin IA)
     pdfService.js       # generación de POD en PDF
 tests/                  # suite node:test (sin frameworks externos)
 ```
@@ -45,8 +43,7 @@ tests/                  # suite node:test (sin frameworks externos)
 La suite cubre la lógica pura y los servicios:
 - `addressCleaner` — limpieza de símbolos y materiales industriales
 - `routeOptimizer` — orden greedy determinista
-- `aiService` — fallback a greedy sin API key
-- `db` — altas/bajas/consultas SQLite
+- `db` — altas/bajas/consultas (PostgreSQL y JSON)
 - `pdfService` — genera un PDF válido con firma y geolocalización
 - `ocrService` — procesamiento de imagen sin fallar si no hay Tesseract
 

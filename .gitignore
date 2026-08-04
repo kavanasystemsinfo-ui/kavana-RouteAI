@@ -12,5 +12,7 @@ client-admin/dist
 client/node_modules
 client-admin/node_modules
 .DS_Store
+# Datos de lenguaje Tesseract descargados al vuelo por el OCR
+*.traineddata
 # Secrets de firma APK (keystore) - NO subir al repo
 secrets/

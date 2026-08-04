@@ -15,11 +15,14 @@ El repartidor necesita una aplicación móvil para escanear albaranes, capturar 
 | **Web responsive** | Simple, barato | No funciona offline, peor UX móvil |
 
 ## Decisión
-**PWA con Service Worker** para cacheo offline-first. Canvas nativo para firma digital.
+**Web responsive pensada para móvil** (sin app nativa). El ADR evaluó PWA con
+Service Worker para offline, pero a fecha de hoy **no hay service worker ni
+manifest** en el código: el client es una SPA web que funciona con conexión.
+Canvas nativo para firma digital.
 
 ## Consecuencias
-- Positivas: sin store, actualización instantánea, offline funcional
-- Negativas: sin notificaciones push nativas, limitado en iOS
+- Positivas: sin store, actualización instantánea, accesible desde cualquier navegador
+- Negativas: sin offline real (pendiente implementar service worker), sin notificaciones push nativas, limitado en iOS
 
 ---
 
