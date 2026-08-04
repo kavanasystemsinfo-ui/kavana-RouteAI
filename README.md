@@ -1,6 +1,6 @@
 # 🛡️ KAVANA LOGISTICS | Industrial Control System
 
-**KAVANA** (Propósito/Intención) es la división logística de Kavana Systems diseñada específicamente para fabricantes del sector metalúrgico (estanterías, puntales y bandejas). Un sistema de gestión de campo táctico que prioriza la eficiencia, el control de costes y la trazabilidad ISO 9001.
+**KAVANA** (Propósito/Intención) es la división logística de Kavana Systems diseñada para empresas de reparto y distribución. Un sistema de gestión de campo táctico que prioriza la eficiencia, el control de costes y la trazabilidad ISO 9001.
 
 ## 🚀 Innovaciones Clave
 - **Identidad Electric Orange:** Interfaz mimetizada en `#FF3D00` para máxima visibilidad en tablets industriales y móviles.

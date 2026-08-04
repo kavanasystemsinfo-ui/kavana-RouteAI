@@ -1,7 +1,7 @@
 # AUDITORIA TECNICA PROFESIONAL — KAVANA ROUTEFLEET
 
 **Proyecto:** KAVANA RouteFleet (anteriormente KAVANA Logistics)
-**Division:** Kavana Systems — Logistica de campo para sector metalurgico
+**Division:** Kavana Systems — Logistica de campo para empresas de reparto
 **Fecha:** 2026-07-13
 **Autor del informe:** Hermes Agent (perfil jobhunter)
 **Estado:** v1.0 — Backend funcional, 19 tests automatizados, CI activa
@@ -12,7 +12,7 @@
 # 1. RESUMEN EJECUTIVO
 
 KAVANA RouteFleet es una aplicacion de gestion de logistica de campo disenada para
-fabricantes del sector metalurgico (estanterias, puntales, bandejas). Resuelve un
+empresas de reparto y distribucion. Resuelve un
 problema industrial real: el reparto de materiales desde fabrica hasta obra, con
 control de costes OPEX, OCR de albaranes y prueba de entrega (POD) digital.
 
@@ -71,7 +71,7 @@ de IO (fetch, pdfkit, db) permite testear el comportamiento sin mocks complejos.
 # 4. DOCUMENTACION DEL PROYECTO (README.md)
 
 KAVANA ROUTEFLEET es la division logistica de Kavana Systems disenada para
-fabricantes del sector metalurgico. Sistema de gestion de campo tactico que prioriza
+empresas de reparto y distribucion. Sistema de gestion de campo tactico que prioriza
 eficiencia, control de costes y trazabilidad ISO 9001.
 
 Innovaciones clave:

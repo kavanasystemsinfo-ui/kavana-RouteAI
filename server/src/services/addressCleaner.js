@@ -1,10 +1,9 @@
 // Limpieza semántica de direcciones extraídas por OCR (Kavana Lens).
 // Extrae la dirección de entrega eliminando símbolos de tabla y palabras
-// clave de material industrial que ensucian el GPS (ver DECISIONES_ESTRATEGICAS.md).
+// clave de envío que ensucian el GPS (ver DECISIONES_ESTRATEGICAS.md).
 
 const MATERIAL_KEYWORDS = [
-  'puntales', 'largueros', 'bandejas', 'estanterías', 'estanterias',
-  'bultos', 'perfiles', 'vigas', 'tubos', 'panel', 'paneles'
+  'bultos', 'cajas', 'palet', 'palets', 'paquetes', 'caja', 'bulto'
 ];
 
 const TABLE_SYMBOLS = ['|', '[', ']', '{', '}', '\\', ';', '~', '°', '_'];

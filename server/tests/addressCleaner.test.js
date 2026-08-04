@@ -3,19 +3,19 @@ import assert from 'node:assert/strict';
 import { cleanAddress, extractAddressLines } from '../src/services/addressCleaner.js';
 
 test('elimina simbolos de tabla (|, [, ])', () => {
-  const input = '| Puntales | Calle Mayor 12 | [Bulto]';
+  const input = '| Paquetes | Calle Mayor 12 | [Bulto]';
   const out = cleanAddress(input);
   assert.ok(!out.includes('|'));
   assert.ok(!out.includes('['));
   assert.ok(!out.includes(']'));
 });
 
-test('filtra palabras clave de material industrial', () => {
-  const input = 'Largueros y Puntales entregar en Avda. del Acero 45, Valencia';
+test('filtra palabras clave de envio', () => {
+  const input = 'Palet y Cajas entregar en Avda. del Puerto 45, Valencia';
   const out = cleanAddress(input);
-  assert.ok(!out.includes('Largueros'));
-  assert.ok(!out.includes('Puntales'));
-  assert.ok(out.includes('Avda. del Acero 45'));
+  assert.ok(!out.includes('Palet'));
+  assert.ok(!out.includes('Cajas'));
+  assert.ok(out.includes('Avda. del Puerto 45'));
 });
 
 test('conserva la direccion limpia y legible', () => {

@@ -9,9 +9,9 @@ test('processManifestImage limpia un texto OCR simulado', async () => {
   assert.ok('address' in result);
 });
 
-test('cleanAddress integrado en OCR: quita materiales', () => {
-  const dirty = 'Puntales y Largueros | Entregar Avda. del Acero 45, Valencia';
+test('cleanAddress integrado en OCR: quita palabras de envio', () => {
+  const dirty = 'Palet y Cajas | Entregar Avda. del Puerto 45, Valencia';
   const out = cleanAddress(dirty);
-  assert.ok(!out.includes('Puntales'));
-  assert.ok(out.includes('Avda. del Acero 45'));
+  assert.ok(!out.includes('Palet'));
+  assert.ok(out.includes('Avda. del Puerto 45'));
 });
