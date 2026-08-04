@@ -10,6 +10,7 @@ import { seedDrivers } from './seed.js';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const PODS_DIR = path.join(process.cwd(), 'pods');
+const INCIDENTS_DIR = path.join(process.cwd(), 'incidents');
 
 const ALLOWED = (process.env.CORS_ORIGINS || 'https://kavanasystemsinfo-ui.github.io,https://routeai.kavanasystems.com,https://www.routeai.kavanasystems.com').split(',').map((s) => s.trim());
 
@@ -35,6 +36,8 @@ export function createServer(db) {
   app.use('/api', apiRouter(db));
   if (!fs.existsSync(PODS_DIR)) fs.mkdirSync(PODS_DIR, { recursive: true });
   app.use('/pods', express.static(PODS_DIR));
+  if (!fs.existsSync(INCIDENTS_DIR)) fs.mkdirSync(INCIDENTS_DIR, { recursive: true });
+  app.use('/incidents', express.static(INCIDENTS_DIR));
   return app;
 }
 

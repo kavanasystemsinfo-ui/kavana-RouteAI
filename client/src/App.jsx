@@ -696,6 +696,45 @@ function App() {
               )}
            </div>
         )}
+        {activeTab === 'history' && (
+          <div style={{padding: '24px'}} className="animate-fade">
+            <div style={{...styles.stopLabel, marginBottom: '16px'}}>ENTREGAS COMPLETADAS</div>
+            {stops.filter(s => s.status === 'delivered').length === 0 ? (
+              <div style={{textAlign: 'center', padding: '40px 20px', color: '#444'}}>
+                <CheckCircle2 size={48} style={{marginBottom: '16px', opacity: 0.2}} />
+                <div style={{fontSize: '14px', fontWeight: '800'}}>Sin entregas completadas</div>
+                <div style={{fontSize: '11px', marginTop: '8px'}}>Las entregas realizadas aparecerán aquí</div>
+              </div>
+            ) : (
+              <>
+                <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#111', border: '1px solid #222', borderRadius: 12, padding: '14px 16px', marginBottom: '16px'}}>
+                  <div>
+                    <div style={{fontSize: '10px', color: '#666', fontWeight: 900, letterSpacing: '1px'}}>COMPLETADAS</div>
+                    <div style={{fontSize: '24px', fontWeight: 900, color: '#22c55e'}}>{stops.filter(s => s.status === 'delivered').length}</div>
+                  </div>
+                  <div style={{textAlign: 'right'}}>
+                    <div style={{fontSize: '10px', color: '#666', fontWeight: 900, letterSpacing: '1px'}}>TOTAL</div>
+                    <div style={{fontSize: '24px', fontWeight: 900, color: '#fff'}}>{stops.length}</div>
+                  </div>
+                </div>
+                {stops.filter(s => s.status === 'delivered').sort((a, b) => (b.updated_at || b.created_at || '').localeCompare(a.updated_at || a.created_at || '')).map(s => (
+                  <div key={s.id} style={{...styles.checkItem, opacity: 0.7}}>
+                    <div style={{...styles.checkIcon, backgroundColor: '#22c55e'}}>
+                      <Check size={14} style={{color: '#000'}} />
+                    </div>
+                    <div style={{flex: 1}}>
+                      <div style={{fontSize: '13px', fontWeight: '800', color: '#fff'}}>{s.address}</div>
+                      <div style={{fontSize: '10px', color: '#666', marginTop: '2px'}}>
+                        {s.receiver_name ? `Recibido por: ${s.receiver_name}` : 'Sin nombre'}
+                        {(s.updated_at || s.created_at) && ` · ${(s.updated_at || s.created_at).slice(0, 10)}`}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </>
+            )}
+          </div>
+        )}
       </main>
 
       <nav style={styles.nav}>
@@ -711,9 +750,9 @@ function App() {
           <Camera style={{width: '24px', height: '24px'}} />
           <span style={{fontSize: '8px', fontWeight: '900', textTransform: 'uppercase', letterSpacing: '1px'}}>Carga</span>
         </button>
-        <button style={{color: '#444', background: 'none', border: 'none', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px'}}>
-          <Bell style={{width: '24px', height: '24px'}} />
-          <span style={{fontSize: '8px', fontWeight: '900', textTransform: 'uppercase', letterSpacing: '1px'}}>Avisos</span>
+        <button onClick={() => setActiveTab('history')} style={{...styles.navItem, color: activeTab === 'history' ? '#f8cd00' : '#444', background: 'none', border: 'none', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px'}}>
+          <CheckCircle2 style={{width: '24px', height: '24px'}} />
+          <span style={{fontSize: '8px', fontWeight: '900', textTransform: 'uppercase', letterSpacing: '1px'}}>Historial</span>
         </button>
       </nav>
 

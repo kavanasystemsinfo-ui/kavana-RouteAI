@@ -3,9 +3,13 @@
 Este documento recoge las decisiones técnicas clave del proyecto y su fundamento.
 Actualizado: Julio 2026.
 
+> Las decisiones detalladas con alternativas evaluadas están en [`docs/adr/`](./docs/adr/).
+
 ---
 
 ## 1. Optimización de Rutas: 2-opt vs IA
+
+**ADR:** [`docs/adr/001-reemplazo-ia-por-2opt.md`](./docs/adr/001-reemplazo-ia-por-2opt.md)
 
 ### Decisión
 Se eliminó la dependencia de OpenRouter (IA) para la optimización de rutas. Se reemplazó por un algoritmo **2-opt** local.
@@ -28,6 +32,8 @@ Se eliminó la dependencia de OpenRouter (IA) para la optimización de rutas. Se
 ---
 
 ## 2. Geocodificación: Nominatim con Fallbacks
+
+**ADR:** [`docs/adr/002-geocodificacion-nominatim-fallbacks.md`](./docs/adr/002-geocodificacion-nominatim-fallbacks.md)
 
 ### Decisión
 Se mejoró el geocodificador de Nominatim con múltiples estrategias de fallback y validación geográfica.
@@ -54,6 +60,8 @@ Se mejoró el geocodificador de Nominatim con múltiples estrategias de fallback
 
 ## 3. OCR: Extracción de Direcciones de PDF
 
+*(Sin ADR separado — decisión menor documentada aquí)*
+
 ### Decisión
 Se añadió limpieza de prefijos numéricos (números de parada) en las líneas extraídas del PDF.
 
@@ -72,6 +80,8 @@ Se añadió limpieza de prefijos numéricos (números de parada) en las líneas 
 ---
 
 ## 4. Despliegue: GitHub Actions + Pages vs Vercel
+
+**ADR:** [`docs/adr/005-despliegue-github-pages-render.md`](./docs/adr/005-despliegue-github-pages-render.md)
 
 ### Decisión
 El frontend (Torre de Control + app repartidor) se despliega con GitHub Actions a GitHub Pages.

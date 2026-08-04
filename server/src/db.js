@@ -156,6 +156,10 @@ const pgQueries = {
       [stopId, type, photo || null, notes || '']
     );
   },
+  listIncidents: async (pool) => {
+    const res = await pool.query('SELECT * FROM incidents ORDER BY created_at DESC');
+    return res.rows;
+  },
   setSetting: async (pool, key, value) => {
     await pool.query('INSERT INTO settings (key, value) VALUES ($1,$2) ON CONFLICT (key) DO UPDATE SET value = $2', [key, String(value)]);
   },
@@ -260,6 +264,9 @@ const jsonQueries = {
   addIncident: (db, stopId, type, photo, notes) => {
     db._store.incidents.push({ id: db._store.incidents.length + 1, stop_id: stopId, type, photo_data: photo || null, notes: notes || '', created_at: new Date().toISOString() });
     db._save();
+  },
+  listIncidents: (db) => {
+    return (db._store.incidents || []).slice().sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
   },
   setSetting: (db, key, value) => { db._store.settings[key] = parseFloat(value); db._save(); },
   getSettings: (db) => ({ ...db._store.settings }),

@@ -341,9 +341,41 @@ export default function apiRouter(db) {
     try {
       const { id } = req.params;
       const { type, photo_data, notes } = req.body;
-      await q.addIncident(db, Number(id), type, photo_data, notes);
+      // Guardar foto en disco en vez de en base64 en la BD
+      let photo_url = null;
+      if (photo_data && photo_data.startsWith('data:image')) {
+        const matches = photo_data.match(/^data:image\/(\w+);base64,(.+)$/);
+        if (matches) {
+          const ext = matches[1] === 'jpeg' ? 'jpg' : matches[1];
+          const buffer = Buffer.from(matches[2], 'base64');
+          const incidentsDir = path.join(__dirname, '../../incidents');
+          if (!fs.existsSync(incidentsDir)) fs.mkdirSync(incidentsDir, { recursive: true });
+          const filename = `incident_${id}_${Date.now()}.${ext}`;
+          fs.writeFileSync(path.join(incidentsDir, filename), buffer);
+          photo_url = `/incidents/${filename}`;
+        }
+      }
+      await q.addIncident(db, Number(id), type, photo_url || photo_data?.slice(0,50) || '', notes);
       await q.updateStop(db, Number(id), { status: 'incident' });
-      res.json({ success: true });
+      res.json({ success: true, photo_url });
+    } catch (error) { res.status(500).json({ error: error.message }); }
+  });
+
+  // List incidents (admin)
+  router.get('/incidents', requireAuth(['office']), async (req, res) => {
+    try {
+      const allIncidents = await q.listIncidents(db);
+      const allStops = await q.listStops(db);
+      const allDrivers = await q.listDrivers(db);
+      const enriched = allIncidents.map((inc) => {
+        const stop = allStops.find((s) => s.id === inc.stop_id);
+        const driver = allDrivers.find((d) => d.id === stop?.driver_id);
+        // Si la foto es base64, dejar solo indicador (el base64 es enorme)
+        let photo_data = inc.photo_data || '';
+        if (photo_data.length > 200) photo_data = '/incidents/legacy';
+        return { ...inc, photo_data, driver_name: driver?.name || '—', address: stop?.address || '—' };
+      });
+      res.json(enriched);
     } catch (error) { res.status(500).json({ error: error.message }); }
   });
 
@@ -354,14 +386,17 @@ export default function apiRouter(db) {
       const files = fs.existsSync(podsDir)
         ? fs.readdirSync(podsDir).filter((f) => f.includes(`_${req.params.id}_`) && f.endsWith('.pdf'))
         : [];
-      if (files.length > 0) return res.json({ pod_url: `/pods/${files[0]}` });
+      if (files.length > 0) {
+        // Redirigir directamente al archivo PDF
+        return res.redirect(`/pods/${files[0]}`);
+      }
       const allStops = await q.listStops(db);
       const stop = allStops.find((s) => String(s.id) === String(req.params.id));
       if (stop && stop.status === 'delivered' && stop.signature) {
         const podPath = await generatePOD(stop, stop.signature);
         const podUrl = `/pods/${path.basename(podPath)}`;
         await q.savePod(db, Number(req.params.id), podUrl);
-        return res.json({ pod_url: absoluteUrl(req, podUrl) });
+        return res.redirect(podUrl);
       }
       return res.status(404).json({ error: 'Sin POD' });
     } catch (error) { res.status(500).json({ error: error.message }); }

@@ -217,6 +217,7 @@ Resumen de decisiones clave:
 | `docs/HISTORY.md` | Evolución del proyecto |
 | `docs/METRICS.md` | Métricas de calidad |
 | `docs/SECURITY.md` | Consideraciones de seguridad |
+| `DECISIONS.md` | Decisiones técnicas resumidas |
 
 ---
 
