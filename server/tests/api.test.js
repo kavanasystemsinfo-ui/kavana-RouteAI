@@ -215,3 +215,82 @@ test('GET /stops?driver_id=X filtra por repartidor (oficina)', async () => {
     data.forEach((s) => assert.equal(s.driver_id, drvA));
   } finally { server.close(); }
 });
+
+test('GET /stops?from&to filtra por rango de fechas', async () => {
+  const { server, base, db } = await startServer();
+  const q = db.queries;
+  try {
+    const drv = await q.addDriver(db, 'Rango', '3333');
+    // Insertar paradas con created_at distintos (via SQL directo al store JSON)
+    const may = new Date('2026-05-15T10:00:00').toISOString();
+    const jul = new Date('2026-07-15T10:00:00').toISOString();
+    const a1 = await q.addStop(db, Date.now(), 'Parada Mayo', 'pending', drv);
+    const a2 = await q.addStop(db, Date.now(), 'Parada Julio', 'pending', drv);
+    db._store.stops.find((s) => s.id === a1).created_at = may;
+    db._store.stops.find((s) => s.id === a2).created_at = jul;
+    db._save();
+
+    const ologin = await fetch(`${base}/api/office/login`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ pin: '0000' }) });
+    const { token: otok } = await ologin.json();
+    const res = await fetch(`${base}/api/stops?from=2026-06-01&to=2026-07-31`, { headers: { ...authH(otok) } });
+    const data = await res.json();
+    assert.equal(data.length, 1);
+    assert.equal(data[0].address, 'Parada Julio');
+  } finally { server.close(); }
+});
+
+test('GET /stops no incluye la firma base64 en el listado', async () => {
+  const { server, base, db } = await startServer();
+  const q = db.queries;
+  try {
+    const drv = await q.addDriver(db, 'Firma', '4444');
+    const id = await q.addStop(db, Date.now(), 'Parada Firma', 'delivered', drv);
+    db._store.stops.find((s) => s.id === id).signature = 'data:image/png;base64,AAAA';
+    db._store.stops.find((s) => s.id === id).receiver_name = 'Cliente';
+    db._save();
+
+    const ologin = await fetch(`${base}/api/office/login`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ pin: '0000' }) });
+    const { token: otok } = await ologin.json();
+    const res = await fetch(`${base}/api/stops`, { headers: { ...authH(otok) } });
+    const data = await res.json();
+    assert.equal(data.length, 1);
+    assert.equal(data[0].signature, undefined, 'la firma base64 no debe viajar en el listado');
+    assert.equal(data[0].receiver_name, 'Cliente', 'el resto de campos si debe estar');
+  } finally { server.close(); }
+});
+
+test('GET /driver/sessions?from&to filtra por rango de fechas', async () => {
+  const { server, base, db } = await startServer();
+  const q = db.queries;
+  try {
+    const drv = await q.addDriver(db, 'Sesion', '5555');
+    // Jornada de mayo y de julio (fechas distintas)
+    const may = new Date('2026-05-15T08:00:00').toISOString();
+    const jul = new Date('2026-07-15T08:00:00').toISOString();
+    await poolInsertSession(db, drv, may);
+    await poolInsertSession(db, drv, jul);
+
+    const ologin = await fetch(`${base}/api/office/login`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ pin: '0000' }) });
+    const { token: otok } = await ologin.json();
+    const res = await fetch(`${base}/api/driver/sessions?from=2026-06-01&to=2026-07-31`, { headers: { ...authH(otok) } });
+    const data = await res.json();
+    assert.equal(data.length, 1);
+    assert.equal(data[0].date.slice(0, 10), '2026-07-15');
+  } finally { server.close(); }
+});
+
+// Helper: insertar sesion directo en el store JSON (started_at retroactivo)
+function poolInsertSession(db, driverId, startedAtIso) {
+  const sessions = db._store.sessions || (db._store.sessions = []);
+  const id = sessions.length + 1;
+  sessions.push({
+    id, driver_id: driverId,
+    km_initial: 100, km_final: 140, km_total: 40,
+    date: startedAtIso.slice(0, 10),
+    started_at: startedAtIso,
+    ended_at: startedAtIso,
+    status: 'closed'
+  });
+  db._save();
+  return id;
+}

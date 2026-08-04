@@ -28,14 +28,20 @@ export default function apiRouter(db) {
   // Dashboard metrics
   router.get('/dashboard-data', requireAuth(['office']), async (req, res) => {
     try {
-      const stops = await q.listStops(db);
+      const { from, to } = req.query;
+      const stops = await q.listStops(db, {
+        from: from || undefined,
+        to: to || undefined
+      });
       const settings = await q.getSettings(db);
       const podsDir = path.join(__dirname, '../../pods');
       let podsFiles = [];
       if (fs.existsSync(podsDir)) podsFiles = fs.readdirSync(podsDir).filter((f) => f.endsWith('.pdf'));
       const dashboardStops = stops.map((stop) => {
         const podFile = podsFiles.find((f) => f.includes(`_${stop.id}_`));
-        return { ...stop, pod_url: podFile ? `/pods/${podFile}` : null };
+        // Quitar la firma base64 del payload (el POD la genera bajo demanda)
+        const { signature, ...rest } = stop;
+        return { ...rest, pod_url: podFile ? `/pods/${podFile}` : null };
       });
       const metrics = {
         total: stops.length,
@@ -67,11 +73,20 @@ export default function apiRouter(db) {
   // Sessions (admin) — historial de jornadas de conductores
   router.get('/driver/sessions', requireAuth(['office']), async (req, res) => {
     try {
+      const { from, to } = req.query;
+      // Comparar como timestamps (ms), no strings: node-postgres devuelve
+      // started_at como objeto Date y Date < string da NaN (nunca filtra).
+      const f = from ? new Date(from).getTime() : null;
+      const t = to ? new Date(to + 'T23:59:59').getTime() : null;
       const drivers = await q.listDrivers(db);
       const allSessions = [];
       for (const d of drivers) {
         const sessions = await q.listSessions(db, d.id);
         for (const s of sessions) {
+          // Filtrar por rango de fechas (started_at de la jornada)
+          const t0 = s.started_at ? new Date(s.started_at).getTime() : null;
+          if (f !== null && (t0 === null || t0 < f)) continue;
+          if (t !== null && (t0 === null || t0 > t)) continue;
           allSessions.push({ ...s, driver_name: d.name });
         }
       }
@@ -178,7 +193,10 @@ export default function apiRouter(db) {
         from: from || undefined,
         to: to || undefined
       });
-      res.json(stops);
+      // No enviar la firma base64 en el listado general (payload enorme).
+      // El POD (PDF con firma) se genera bajo demanda en /stops/:id/pod.
+      const sinFirma = stops.map(({ signature, ...rest }) => rest);
+      res.json(sinFirma);
     } catch (error) { res.status(500).json({ error: error.message }); }
   });
 
@@ -440,10 +458,21 @@ export default function apiRouter(db) {
   // List incidents (admin)
   router.get('/incidents', requireAuth(['office']), async (req, res) => {
     try {
+      const { from, to } = req.query;
+      // Comparar como timestamps (ms): node-postgres devuelve created_at como Date
+      const f = from ? new Date(from).getTime() : null;
+      const t = to ? new Date(to + 'T23:59:59').getTime() : null;
       const allIncidents = await q.listIncidents(db);
-      const allStops = await q.listStops(db);
+      // Filtrar por rango de fechas (created_at del incidente, alineado con su parada)
+      const rangoIncidents = allIncidents.filter((inc) => {
+        const t0 = inc.created_at ? new Date(inc.created_at).getTime() : null;
+        if (f !== null && (t0 === null || t0 < f)) return false;
+        if (t !== null && (t0 === null || t0 > t)) return false;
+        return true;
+      });
+      const allStops = await q.listStops(db, { from: from || undefined, to: to || undefined });
       const allDrivers = await q.listDrivers(db);
-      const enriched = allIncidents.map((inc) => {
+      const enriched = rangoIncidents.map((inc) => {
         const stop = allStops.find((s) => s.id === inc.stop_id);
         const driver = allDrivers.find((d) => d.id === stop?.driver_id);
         // Si la foto es base64, dejar solo indicador (el base64 es enorme)

@@ -52,6 +52,7 @@ export default function App() {
   const [filterStatus, setFilterStatus] = useState('');
   const [from, setFrom] = useState('');
   const [to, setTo] = useState('');
+  const [rangeMode, setRangeMode] = useState('mes_actual'); // mes_actual | mes_anterior | semana | todo | custom
   const [loading, setLoading] = useState(false);
   const [sessions, setSessions] = useState([]);
   // Settings editables
@@ -89,22 +90,65 @@ export default function App() {
   const loadAll = useCallback(async () => {
     setLoading(true);
     try {
+      const qs = new URLSearchParams();
+      if (from) qs.set('from', from);
+      if (to) qs.set('to', to);
+      const q = qs.toString() ? `?${qs.toString()}` : '';
       const [d, s, i, set, sess] = await Promise.all([
         authFetch(`${API_BASE}/drivers`).then(r => r.json()),
-        authFetch(`${API_BASE}/stops`).then(r => r.json()),
-        authFetch(`${API_BASE}/incidents`).then(r => r.json()),
+        authFetch(`${API_BASE}/stops${q}`).then(r => r.json()),
+        authFetch(`${API_BASE}/incidents${q}`).then(r => r.json()),
         authFetch(`${API_BASE}/settings`).then(r => r.json()),
-        authFetch(`${API_BASE}/driver/sessions`).then(r => r.json())
+        authFetch(`${API_BASE}/driver/sessions${q}`).then(r => r.json())
       ]);
       setDrivers(d); setStops(s); setIncidents(i); setSettings(set); setSessions(sess);
     } catch (e) { console.error(e); }
     setLoading(false);
-  }, []);
+  }, [from, to]);
 
   // Si hay token guardado, entrar directo.
   useEffect(() => { if (token) setLogged(true); }, []);
 
   useEffect(() => { if (logged) loadAll(); }, [logged, loadAll]);
+
+  // Calcula from/to según el modo de rango seleccionado
+  const calcRange = (mode) => {
+    const hoy = new Date();
+    const iso = (d) => d.toISOString().slice(0, 10);
+    if (mode === 'mes_actual') {
+      const primero = new Date(hoy.getFullYear(), hoy.getMonth(), 1);
+      return { from: iso(primero), to: iso(hoy) };
+    }
+    if (mode === 'mes_anterior') {
+      const primero = new Date(hoy.getFullYear(), hoy.getMonth() - 1, 1);
+      const ultimo = new Date(hoy.getFullYear(), hoy.getMonth(), 0);
+      return { from: iso(primero), to: iso(ultimo) };
+    }
+    if (mode === 'semana') {
+      const dia = (hoy.getDay() + 6) % 7; // lunes=0
+      const lunes = new Date(hoy);
+      lunes.setDate(hoy.getDate() - dia);
+      return { from: iso(lunes), to: iso(hoy) };
+    }
+    if (mode === 'todo') return { from: '', to: '' };
+    return null; // custom: no tocar from/to
+  };
+
+  // Al cambiar de modo (no custom), recalcular y recargar
+  const applyRange = (mode) => {
+    setRangeMode(mode);
+    const r = calcRange(mode);
+    if (r) { setFrom(r.from); setTo(r.to); }
+  };
+
+  // Al entrar: por defecto mes actual
+  useEffect(() => {
+    if (logged && rangeMode === 'mes_actual' && !from && !to) {
+      const r = calcRange('mes_actual');
+      setFrom(r.from); setTo(r.to);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [logged]);
 
   const driverName = (id) => (drivers.find(d => d.id === Number(id))?.name) || '—';
 
@@ -157,10 +201,10 @@ export default function App() {
     pending: stops.filter(s => s.status === 'pending').length,
     incidents: stops.filter(s => s.status === 'incident').length
   };
-  const opex = (kpi.delivered * settings.cost_per_km * 8 + kpi.delivered * settings.cost_per_hour * 0.5).toFixed(2);
-  // OPEX real desde sesiones de conductores (km reales)
+  // OPEX real desde sesiones de conductores (km reales).
+  // El antiguo "OPEX est." (8km + 0.5h fijos por entrega) se elimino:
+  // inflaba el km real ~4.5x y confundia. Solo se muestra OPEX real.
   const closedSessions = sessions.filter(s => s.status === 'closed' && s.km_total);
-  const totalKmReal = closedSessions.reduce((sum, s) => sum + parseFloat(s.km_total || 0), 0);
   const opexReal = closedSessions.reduce((sum, s) => {
     const driver = drivers.find(d => d.id === s.driver_id);
     const fuelKey = `cost_per_km_${driver?.fuel_type || ''}`;
@@ -205,11 +249,37 @@ export default function App() {
 
       {/* Main */}
       <main style={{flex: 1, padding: 28, overflow: 'auto'}}>
+        {/* Selector de rango global (aplica a todas las pestañas) */}
+        <div style={{display: 'flex', alignItems: 'center', gap: 8, marginBottom: 20, flexWrap: 'wrap'}}>
+          <span style={{fontSize: 13, color: C.muted, fontWeight: 700, marginRight: 4}}>Periodo:</span>
+          {[
+            ['mes_actual', 'Mes actual'],
+            ['mes_anterior', 'Mes anterior'],
+            ['semana', 'Esta semana'],
+            ['todo', 'Todo el histórico'],
+            ['custom', 'Personalizado']
+          ].map(([key, label]) => (
+            <button key={key} onClick={() => applyRange(key)}
+              style={{padding: '8px 14px', borderRadius: 8, border: `1px solid ${C.border}`, cursor: 'pointer', fontWeight: 700, fontSize: 12,
+                background: rangeMode === key ? C.accent : 'transparent', color: rangeMode === key ? '#000' : C.text}}>{label}</button>
+          ))}
+          {rangeMode === 'custom' && (
+            <>
+              <input type="date" value={from} onChange={e => setFrom(e.target.value)}
+                style={{padding: '7px 10px', background: C.panel2, border: `1px solid ${C.border}`, borderRadius: 8, color: C.text, fontSize: 13}} />
+              <span style={{color: C.muted, fontSize: 13}}>a</span>
+              <input type="date" value={to} onChange={e => setTo(e.target.value)}
+                style={{padding: '7px 10px', background: C.panel2, border: `1px solid ${C.border}`, borderRadius: 8, color: C.text, fontSize: 13}} />
+            </>
+          )}
+          {from && <span style={{fontSize: 12, color: C.muted}}>({from} → {to || 'hoy'})</span>}
+          {loading && <span style={{fontSize: 12, color: C.muted}}>cargando…</span>}
+        </div>
         {section === 'dashboard' && (
           <>
             <h2 style={{marginTop: 0}}>Dashboard</h2>
             <div style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px,1fr))', gap: 16, marginBottom: 24}}>
-              {[['Total', fmtNum(kpi.total), C.text], ['Entregados', fmtNum(kpi.delivered), C.green], ['Pendientes', fmtNum(kpi.pending), C.amber], ['Incidencias', fmtNum(kpi.incidents), C.red], ['OPEX est.', `€${fmtEuro(opex)}`, C.accent], ['OPEX real', closedSessions.length > 0 ? `€${fmtEuro(opexReal)}` : '—', closedSessions.length > 0 ? C.green : C.muted]].map(([l, v, c]) => (
+              {[['Total', fmtNum(kpi.total), C.text], ['Entregados', fmtNum(kpi.delivered), C.green], ['Pendientes', fmtNum(kpi.pending), C.amber], ['Incidencias', fmtNum(kpi.incidents), C.red], ['OPEX real', closedSessions.length > 0 ? `€${fmtEuro(opexReal)}` : '—', closedSessions.length > 0 ? C.green : C.muted]].map(([l, v, c]) => (
                 <div key={l} style={{background: C.panel, border: `1px solid ${C.border}`, borderRadius: 12, padding: 18}}>
                   <div style={{fontSize: 12, color: C.muted}}>{l}</div>
                   <div style={{fontSize: 28, fontWeight: 900, color: c}}>{v}</div>

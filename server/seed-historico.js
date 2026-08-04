@@ -391,8 +391,8 @@ async function main() {
         } else if (status === 'incident') {
           const tipo = elegir(TIPOS_INCIDENCIA);
           await pool.query(
-            'INSERT INTO incidents (stop_id, type, photo_data, notes) VALUES ($1,$2,$3,$4)',
-            [stopId, tipo, FOTO_POR_TIPO[tipo] || '', elegir(NOTAS_INCIDENCIA)]
+            'INSERT INTO incidents (stop_id, type, photo_data, notes, created_at) VALUES ($1,$2,$3,$4,$5)',
+            [stopId, tipo, FOTO_POR_TIPO[tipo] || '', elegir(NOTAS_INCIDENCIA), horaActual]
           );
           totalIncidents++;
         } else {
