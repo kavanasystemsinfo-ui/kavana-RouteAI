@@ -25,7 +25,7 @@ function elegir(arr) { return arr[Math.floor(rnd() * arr.length)]; }
 // Datos base
 // ---------------------------------------------------------------------------
 const REPARTIDORES = [
-  { name: 'Repartidor KAVANA', pin: '5855', fuel_type: 'diesel', baseKm: 42000 },
+  { name: 'Raúl Giménez',      pin: '5855', fuel_type: 'diesel', baseKm: 42000 },
   { name: 'Marco Andrés',      pin: '5856', fuel_type: 'diesel',  baseKm: 31500 },
   { name: 'Lucía Ferrando',    pin: '5857', fuel_type: 'electrico', baseKm: 9800 },
   { name: 'Javier Molina',     pin: '5858', fuel_type: 'gasolina', baseKm: 52700 },
@@ -129,6 +129,16 @@ const NOTAS_INCIDENCIA = [
   'Portal cerrado y sin portero. Se dejó aviso.',
   'Local cerrado a la hora de entrega programada.',
 ];
+
+// Foto placeholder por tipo de incidencia (archivos en server/incidents/)
+const FOTO_POR_TIPO = {
+  'Cliente ausente': '/incidents/cliente_ausente.jpg',
+  'Dirección incorrecta': '/incidents/direccion_incorrecta.jpg',
+  'Bulto dañado': '/incidents/bulto_danado.jpg',
+  'Rechazado por cliente': '/incidents/rechazado.jpg',
+  'No se pudo acceder': '/incidents/sin_acceso.jpg',
+  'Horario cerrado': '/incidents/horario_cerrado.jpg',
+};
 
 // ---------------------------------------------------------------------------
 // Mini generador de firma PNG (sin dependencias, zlib nativo)
@@ -379,9 +389,10 @@ async function main() {
           );
           totalDelivered++;
         } else if (status === 'incident') {
+          const tipo = elegir(TIPOS_INCIDENCIA);
           await pool.query(
             'INSERT INTO incidents (stop_id, type, photo_data, notes) VALUES ($1,$2,$3,$4)',
-            [stopId, elegir(TIPOS_INCIDENCIA), '', elegir(NOTAS_INCIDENCIA)]
+            [stopId, tipo, FOTO_POR_TIPO[tipo] || '', elegir(NOTAS_INCIDENCIA)]
           );
           totalIncidents++;
         } else {

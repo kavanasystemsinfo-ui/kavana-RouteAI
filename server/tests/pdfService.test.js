@@ -1,5 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import zlib from 'node:zlib';
 import { generatePOD } from '../src/services/pdfService.js';
 import fs from 'fs';
 import path from 'path';
@@ -28,5 +29,28 @@ test('generatePOD maneja firma ausente', async () => {
   const podUrl = await generatePOD(stop, null);
   const filePath = path.join(PODS_DIR, path.basename(podUrl));
   assert.ok(fs.existsSync(filePath));
+  fs.unlinkSync(filePath);
+});
+
+test('generatePOD usa la fecha real de la parada (created_at), no hoy', async () => {
+  const stop = {
+    id: 9,
+    address: 'C/ Fecha 1',
+    receiver_name: 'Lucia',
+    created_at: '2026-05-14T09:37:00.000Z',
+  };
+  const podUrl = await generatePOD(stop, null);
+  const filePath = path.join(PODS_DIR, path.basename(podUrl));
+  const pdf = fs.readFileSync(filePath);
+
+  // El texto del PDF va en un stream FlateDecode (comprimido) y pdfkit codifica
+  // las cadenas en hexadecimal (<...> TJ). Extraer bytes crudos, descomprimir y
+  // decodificar los hex para buscar la fecha real de la parada.
+  const streamStart = pdf.indexOf(Buffer.from('stream\n')) + 'stream\n'.length;
+  const streamEnd = pdf.indexOf(Buffer.from('endstream'));
+  const raw = zlib.inflateSync(pdf.subarray(streamStart, streamEnd)).toString('latin1');
+  const hexText = [...raw.matchAll(/<([0-9a-fA-F]+)>/g)].map((m) => m[1]).join('');
+  const decoded = Buffer.from(hexText, 'hex').toString('latin1');
+  assert.ok(decoded.includes('14/5/2026'), 'el POD debe contener la fecha de la parada (created_at)');
   fs.unlinkSync(filePath);
 });

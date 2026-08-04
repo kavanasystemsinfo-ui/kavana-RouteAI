@@ -32,7 +32,10 @@ export async function generatePOD(stop, signature, geo = null) {
   doc.text(`Parada #${stop.id}`);
   doc.text(`Direccion: ${stop.address || 'N/A'}`);
   doc.text(`Receptor: ${stop.receiver_name || 'No especificado'}`);
-  doc.text(`Fecha: ${new Date().toLocaleString('es-ES')}`);
+  // Fecha real de la entrega: usa created_at de la parada (historico),
+  // con fallback a ahora si la parada no tiene fecha.
+  const fechaEntrega = stop.created_at ? new Date(stop.created_at) : new Date();
+  doc.text(`Fecha: ${fechaEntrega.toLocaleString('es-ES')}`);
 
   // Items entregados (bultos)
   let items = [];
