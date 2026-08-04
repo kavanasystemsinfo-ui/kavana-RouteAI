@@ -64,6 +64,7 @@ export default function App() {
   const [pin, setPin] = useState('');
   const [token, setToken] = useState(() => sessionStorage.getItem('rf_office_token') || '');
   const [section, setSection] = useState('dashboard');
+  const [contactoOpen, setContactoOpen] = useState(false);
   const [drivers, setDrivers] = useState([]);
   const [stops, setStops] = useState([]);
   const [incidents, setIncidents] = useState([]);
@@ -274,10 +275,24 @@ export default function App() {
           ['incidents', 'Incidencias'],
           ['sessions', 'Jornadas'],
           ['costes', 'Costes'],
-          ['assistant', 'Asistente']
+          ['assistant', 'Asistente técnico']
         ].map(([key, label]) => (
           <button key={key} onClick={() => setSection(key)} style={{textAlign: 'left', padding: '12px 14px', marginBottom: 6, borderRadius: 8, border: 'none', cursor: 'pointer', fontWeight: 700, background: section === key ? C.accent : 'transparent', color: section === key ? '#000' : S.text}}>{label}</button>
         ))}
+        {/* Contacto desplegable */}
+        <div style={{ marginBottom: 6 }}>
+          <button onClick={() => setContactoOpen(!contactoOpen)} style={{width: '100%', textAlign: 'left', padding: '12px 14px', borderRadius: 8, border: 'none', cursor: 'pointer', fontWeight: 700, background: 'transparent', color: S.text, display: 'flex', justifyContent: 'space-between', alignItems: 'center'}}>
+            <span>Contacto</span>
+            <span style={{fontSize: 10}}>{contactoOpen ? '▲' : '▼'}</span>
+          </button>
+          {contactoOpen && (
+            <div style={{ marginLeft: 10, marginTop: 2 }}>
+              <a href="mailto:kavanasystems.info@gmail.com" style={{display: 'block', textAlign: 'left', padding: '10px 12px', borderRadius: 8, textDecoration: 'none', fontWeight: 600, color: S.text, fontSize: 13}}>📧 Email</a>
+              <a href="https://www.linkedin.com/in/kavanasystems/" target="_blank" rel="noopener noreferrer" style={{display: 'block', textAlign: 'left', padding: '10px 12px', borderRadius: 8, textDecoration: 'none', fontWeight: 600, color: S.text, fontSize: 13}}>💼 LinkedIn</a>
+              <a href="https://wa.me/34633422461" target="_blank" rel="noopener noreferrer" style={{display: 'block', textAlign: 'left', padding: '10px 12px', borderRadius: 8, textDecoration: 'none', fontWeight: 600, color: S.text, fontSize: 13}}>💬 WhatsApp</a>
+            </div>
+          )}
+        </div>
         <div style={{marginTop: 'auto', fontSize: 11, color: S.muted}}>Route AI v1.0</div>
         <button onClick={logout} style={{marginTop: 12, textAlign: 'left', padding: '10px 14px', borderRadius: 8, border: `1px solid ${S.border}`, cursor: 'pointer', fontWeight: 700, background: 'transparent', color: S.muted}}>Salir</button>
       </aside>
@@ -735,7 +750,7 @@ function AssistantWidget({ API_BASE }) {
       <button onClick={() => setOpen(!open)}
         style={{position: 'fixed', right: 24, bottom: 24, zIndex: 1000, width: 60, height: 60, borderRadius: '50%', border: 'none',
           background: C.accent, color: '#000', fontSize: 26, cursor: 'pointer', boxShadow: '0 4px 16px rgba(0,0,0,.4)'}}
-        title="Pregunta sobre Route AI">💬</button>
+        title="Asistente técnico: pregunta sobre el código de Route AI">💬</button>
 
       {/* Panel de chat */}
       {open && (
