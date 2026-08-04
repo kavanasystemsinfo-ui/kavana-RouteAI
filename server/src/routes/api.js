@@ -17,6 +17,16 @@ export default function apiRouter(db) {
   const q = db.queries;
   const router = express.Router();
 
+  // Una parada es de la demo histórica si pertenece a un repartidor is_demo.
+  async function esStopDemo(stopId) {
+    const stops = await q.listStops(db);
+    const stop = stops.find((s) => String(s.id) === String(stopId));
+    if (!stop) return false;
+    const drivers = await q.listDrivers(db);
+    const driver = drivers.find((d) => d.id === stop.driver_id);
+    return !!(driver && driver.is_demo);
+  }
+
   const absoluteUrl = (req, relPath) => {
     const host = req.get('host');
     const proto = req.headers['x-forwarded-proto'] || req.protocol || 'https';
@@ -103,9 +113,11 @@ export default function apiRouter(db) {
 
   router.post('/drivers', requireAuth(['office']), async (req, res) => {
     try {
-      const { name, pin, phone, email } = req.body;
+      const { name, pin, phone, email, session_id } = req.body;
       if (!name || !pin) return res.status(400).json({ error: 'name y pin requeridos' });
-      const id = await q.addDriver(db, name, pin, phone || '', email || '');
+      // Datos de visitante de la demo: caducan a las 24h
+      const expiraEn = session_id ? new Date(Date.now() + 24 * 60 * 60 * 1000) : null;
+      const id = await q.addDriver(db, name, pin, phone || '', email || '', { session_id: session_id || '', expira_en: expiraEn });
       let emailResult = { sent: false, dev: false };
       try {
         const { sendDriverWelcome } = await import('../services/emailService.js');
@@ -119,6 +131,10 @@ export default function apiRouter(db) {
     try {
       const { id } = req.params;
       const { active, fuel_type, cost_per_km } = req.body;
+      // Blindaje: los repartidores demo (histórico) son solo lectura
+      const drivers = await q.listDrivers(db);
+      const target = drivers.find((d) => String(d.id) === String(id));
+      if (target && target.is_demo) return res.status(403).json({ error: 'Repartidor de la demo histórica: solo lectura' });
       if (active !== undefined) await q.setDriverActive(db, Number(id), active);
       if (fuel_type !== undefined || cost_per_km !== undefined) await q.updateDriverCost(db, Number(id), fuel_type, cost_per_km);
       res.json({ success: true });
@@ -132,6 +148,8 @@ export default function apiRouter(db) {
       const drivers = await q.listDrivers(db);
       const d = drivers.find((x) => String(x.pin) === String(pin) && x.active);
       if (!d) return res.status(401).json({ error: 'PIN incorrecto' });
+      // Blindaje: los repartidores de la demo histórica no pueden iniciar sesión
+      if (d.is_demo) return res.status(403).json({ error: 'Repartidor de la demo histórica: acceso restringido' });
       const token = signToken({ role: 'driver', driverId: d.id });
       res.json({ success: true, token, driver: { id: d.id, name: d.name } });
     } catch (error) { res.status(500).json({ error: error.message }); }
@@ -195,7 +213,13 @@ export default function apiRouter(db) {
       });
       // No enviar la firma base64 en el listado general (payload enorme).
       // El POD (PDF con firma) se genera bajo demanda en /stops/:id/pod.
-      const sinFirma = stops.map(({ signature, ...rest }) => rest);
+      // Marcar las paradas de repartidores demo (solo lectura en el frontend).
+      const drivers = await q.listDrivers(db);
+      const demoDriverIds = new Set(drivers.filter((d) => d.is_demo).map((d) => d.id));
+      const sinFirma = stops.map(({ signature, ...rest }) => ({
+        ...rest,
+        is_demo: demoDriverIds.has(rest.driver_id),
+      }));
       res.json(sinFirma);
     } catch (error) { res.status(500).json({ error: error.message }); }
   });
@@ -372,6 +396,10 @@ export default function apiRouter(db) {
       const { id } = req.params;
       const { status, signature, address, receiverName, items, delivery_notes } = req.body;
 
+      // Blindaje: las paradas de la demo histórica son solo lectura
+      const blindado = await esStopDemo(Number(id));
+      if (blindado) return res.status(403).json({ error: 'Parada de la demo histórica: solo lectura' });
+
       // Entrega con firma → actualizar todo + generar POD
       if (status === 'delivered' && signature) {
         const updates = { status: 'delivered', signature, receiver_name: receiverName || null };
@@ -418,15 +446,27 @@ export default function apiRouter(db) {
     } catch (error) { res.status(500).json({ error: error.message }); }
   });
 
-  // DELETE stop (driver y office pueden borrar)
+  // DELETE stop (driver y office pueden borrar; datos demo solo lectura)
   router.delete('/stops/:id', requireAuth(['driver', 'office']), async (req, res) => {
-    try { await q.deleteStop(db, Number(req.params.id)); res.json({ success: true }); }
+    try {
+      const blindado = await esStopDemo(Number(req.params.id));
+      if (blindado) return res.status(403).json({ error: 'Parada de la demo histórica: solo lectura' });
+      await q.deleteStop(db, Number(req.params.id)); res.json({ success: true });
+    }
     catch (error) { res.status(500).json({ error: error.message }); }
   });
 
-  // Clear all stops (driver y office pueden)
+  // Clear all stops (solo datos de visitante; la demo histórica queda intacta)
   router.delete('/stops', requireAuth(['driver', 'office']), async (req, res) => {
-    try { await q.clearStops(db); res.json({ success: true }); }
+    try {
+      const stops = await q.listStops(db);
+      const drivers = await q.listDrivers(db);
+      const demoDriverIds = new Set(drivers.filter((d) => d.is_demo).map((d) => d.id));
+      // Borrar solo paradas que NO pertenecen a un repartidor demo
+      const borrables = stops.filter((s) => !demoDriverIds.has(s.driver_id));
+      for (const s of borrables) await q.deleteStop(db, s.id);
+      res.json({ success: true, deleted: borrables.length });
+    }
     catch (error) { res.status(500).json({ error: error.message }); }
   });
 
@@ -434,6 +474,9 @@ export default function apiRouter(db) {
   router.post('/stops/:id/incident', requireAuth(['driver']), async (req, res) => {
     try {
       const { id } = req.params;
+      // Blindaje: no se puede reportar incidencia sobre paradas demo
+      const blindado = await esStopDemo(Number(id));
+      if (blindado) return res.status(403).json({ error: 'Parada de la demo histórica: solo lectura' });
       const { type, photo_data, notes } = req.body;
       // Guardar foto en disco en vez de en base64 en la BD
       let photo_url = null;
@@ -507,5 +550,14 @@ export default function apiRouter(db) {
     } catch (error) { res.status(500).json({ error: error.message }); }
   });
 
+  // Limpieza de datos de visitante expirados (cron diario)
+  router.post('/cleanup-expired', requireAuth(['office']), async (req, res) => {
+    try {
+      const result = await q.cleanupExpired(db);
+      res.json({ success: true, ...result });
+    } catch (error) { res.status(500).json({ error: error.message }); }
+  });
+
   return router;
 }
+

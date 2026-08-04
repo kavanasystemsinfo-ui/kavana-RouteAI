@@ -15,9 +15,13 @@ export async function seedDrivers(db) {
   if (db._type === 'pg') {
     const pool = db._pool;
     const existing = await pool.query('SELECT * FROM drivers WHERE pin = $1 LIMIT 1', [pin]);
-    if (existing.rows.length > 0) return { created: false, id: existing.rows[0].id };
+    if (existing.rows.length > 0) {
+      // Marcar como demo si fue creado por el seed histórico
+      await pool.query('UPDATE drivers SET is_demo=true WHERE id=$1', [existing.rows[0].id]);
+      return { created: false, id: existing.rows[0].id };
+    }
     const r = await pool.query(
-      'INSERT INTO drivers (name, pin, phone, email, active) VALUES ($1,$2,$3,$4,true) RETURNING id',
+      'INSERT INTO drivers (name, pin, phone, email, active, is_demo) VALUES ($1,$2,$3,$4,true,true) RETURNING id',
       [name, pin, phone, email]
     );
     return { created: true, id: r.rows[0].id };
@@ -26,7 +30,7 @@ export async function seedDrivers(db) {
   // JSON fallback
   const { queries } = dbModule;
   const existing = db._store.drivers.find((d) => String(d.pin) === String(pin));
-  if (existing) return { created: false, id: existing.id };
-  const id = queries.addDriver(db, name, pin, phone, email);
+  if (existing) { existing.is_demo = true; db._save(); return { created: false, id: existing.id }; }
+  const id = queries.addDriver(db, name, pin, phone, email, { is_demo: true });
   return { created: true, id };
 }

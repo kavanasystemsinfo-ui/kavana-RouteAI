@@ -7,7 +7,7 @@
 ![Express](https://img.shields.io/badge/Express-API-lightgrey)
 ![Web](https://img.shields.io/badge/Web-Responsive-blue)
 ![OCR](https://img.shields.io/badge/OCR-Tesseract-8A2BE2)
-![Tests](https://img.shields.io/badge/Tests-46-success)
+![Tests](https://img.shields.io/badge/Tests-48-success)
 ![License](https://img.shields.io/badge/License-MIT-success)
 
 ---
@@ -84,9 +84,10 @@ La optimización de rutas usa un **algoritmo 2-opt local**: determinista, instan
 
 | Documento | Descripción |
 |-----------|-------------|
-| `docs/adr/` | 6 Architecture Decision Records |
+| `docs/adr/` | Architecture Decision Records (incluye el blindaje de la demo) |
 | `docs/technical/` | Arquitectura, API, backend, despliegue, panel, app |
 | `DECISIONS.md` | Decisiones técnicas resumidas |
+| `docs/HISTORY.md` | Evolución del proyecto por fases |
 
 ---
 
@@ -96,7 +97,7 @@ La optimización de rutas usa un **algoritmo 2-opt local**: determinista, instan
 # Backend
 cd server
 npm install
-npm test        # 43 tests
+npm test        # 48 tests
 
 # App del repartidor (web)
 cd client
@@ -111,12 +112,41 @@ npm run dev
 
 ---
 
+## 🧪 Demo viva (datos simulados)
+
+RouteAI incluye una **demo de empresa ficticia** para portfolio: 90 días de historia con 6 repartidores, 12.000+ paradas, firmas digitales, PODs y km reales de jornada.
+
+### Qué es real y qué es simulado
+
+| Dato | Origen |
+|---|---|
+| Repartidores, paradas, firmas, incidencias, km | Generados por `server/seed-historico.js` (90 días, semilla determinista) |
+| Fotografías de incidencias | Placeholders generados por script (`server/scripts/generar-fotos-incidencias.py`) |
+| Rutas de cada día | Generadas cada madrugada por `server/simulate-daily.js` (cron 06:00) |
+
+### Blindaje: los datos demo son inmutables
+
+- Los 6 repartidores del histórico están marcados `is_demo=true`: **no pueden iniciar sesión** en la app (403), no se pueden editar ni borrar desde la Torre de Control, y sus paradas tampoco.
+- El botón "borrar todo" solo elimina paradas de visitante, el histórico queda intacto.
+- **Cualquier cosa que cree un visitante** (repartidores, albaranes, paradas) lleva `session_id` y caduca a las 24h. Un cron diario (03:00) las limpia en silencio.
+
+### Crons (Hermes, no_agent, silenciosos)
+
+| Cron | Horario | Función |
+|---|---|---|
+| Simulación diaria | 06:00 | Cierra jornadas de ayer, abre las de hoy, genera rutas del día |
+| Limpieza expirados | 03:00 | Borra datos de visitante caducados (24h) |
+| Ping antiduerme | Cada 10 min | Mantiene la API de Render despierta |
+
+---
+
 ## 🌐 Demo
 
 - **Landing portfolio**: https://www.kavanasystems.com/routeai/
 - **App del repartidor**: https://routeai.kavanasystems.com/app/
 - **Torre de control**: https://routeai.kavanasystems.com/
-- **PIN repartidor demo**: `5855` · **PIN oficina**: `0000`
+- **PIN oficina**: `0000`
+- **PIN repartidor demo**: `5855` (solo lectura, no inicia sesión; crea un repartidor propio desde la Torre de Control para probar la app)
 
 ---
 

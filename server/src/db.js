@@ -86,6 +86,13 @@ ALTER TABLE drivers ADD COLUMN IF NOT EXISTS cost_per_km NUMERIC(10,2) DEFAULT 0
 ALTER TABLE driver_sessions ALTER COLUMN km_initial TYPE NUMERIC(10,3);
 ALTER TABLE driver_sessions ALTER COLUMN km_final TYPE NUMERIC(10,3);
 ALTER TABLE driver_sessions ALTER COLUMN km_total TYPE NUMERIC(10,3);
+
+-- Migración: blindaje de datos demo (solo lectura) + sesiones de visitante
+ALTER TABLE drivers ADD COLUMN IF NOT EXISTS is_demo BOOLEAN DEFAULT false;
+ALTER TABLE drivers ADD COLUMN IF NOT EXISTS session_id TEXT DEFAULT '';
+ALTER TABLE drivers ADD COLUMN IF NOT EXISTS expira_en TIMESTAMP;
+ALTER TABLE stops ADD COLUMN IF NOT EXISTS session_id TEXT DEFAULT '';
+ALTER TABLE stops ADD COLUMN IF NOT EXISTS expira_en TIMESTAMP;
 `;
 
 // ---------------------------------------------------------------------------
@@ -143,10 +150,11 @@ const pgQueries = {
     const res = await pool.query(sql, params);
     return res.rows;
   },
-  addStop: async (pool, stopNumber, address, status = 'pending', driverId = null, items = '') => {
+  addStop: async (pool, stopNumber, address, status = 'pending', driverId = null, items = '', extra = {}) => {
     const res = await pool.query(
-      'INSERT INTO stops (stop_number, address, status, driver_id, items) VALUES ($1,$2,$3,$4,$5) RETURNING id',
-      [stopNumber, address, status, driverId, items]
+      `INSERT INTO stops (stop_number, address, status, driver_id, items, session_id, expira_en)
+       VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING id`,
+      [stopNumber, address, status, driverId, items, extra.session_id || '', extra.expira_en || null]
     );
     return res.rows[0].id;
   },
@@ -191,10 +199,11 @@ const pgQueries = {
   savePod: async (pool, stopId, filePath) => {
     await pool.query('INSERT INTO pods (stop_id, file_path) VALUES ($1,$2) ON CONFLICT (stop_id) DO UPDATE SET file_path = $2', [stopId, filePath]);
   },
-  addDriver: async (pool, name, pin, phone = '', email = '') => {
+  addDriver: async (pool, name, pin, phone = '', email = '', extra = {}) => {
     const res = await pool.query(
-      'INSERT INTO drivers (name, pin, phone, email) VALUES ($1,$2,$3,$4) RETURNING id',
-      [name, String(pin), phone, email]
+      `INSERT INTO drivers (name, pin, phone, email, is_demo, session_id, expira_en)
+       VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING id`,
+      [name, String(pin), phone, email, !!extra.is_demo, extra.session_id || '', extra.expira_en || null]
     );
     return res.rows[0].id;
   },
@@ -239,7 +248,30 @@ const pgQueries = {
   listSessions: async (pool, driverId) => {
     const res = await pool.query('SELECT * FROM driver_sessions WHERE driver_id=$1 ORDER BY started_at DESC', [driverId]);
     return res.rows;
-  }
+  },
+  // Limpieza de datos de visitante expirados (cron diario).
+  // Borra drivers con expira_en < NOW() y sus paradas/incidencias/pods/sesiones.
+  async cleanupExpired(pool) {
+    const expired = await pool.query(
+      `SELECT id FROM drivers WHERE expira_en IS NOT NULL AND expira_en < NOW()`
+    );
+    const ids = expired.rows.map((r) => r.id);
+    if (ids.length === 0) return { deletedDrivers: 0, deletedStops: 0 };
+    const placeholders = ids.map((_, i) => `$${i + 1}`).join(',');
+    const stopRes = await pool.query(
+      `SELECT id FROM stops WHERE driver_id IN (${placeholders})`, ids
+    );
+    const stopIds = stopRes.rows.map((r) => r.id);
+    if (stopIds.length > 0) {
+      const sp = stopIds.map((_, i) => `$${i + 1}`).join(',');
+      await pool.query(`DELETE FROM incidents WHERE stop_id IN (${sp})`, stopIds);
+      await pool.query(`DELETE FROM pods WHERE stop_id IN (${sp})`, stopIds);
+      await pool.query(`DELETE FROM stops WHERE id IN (${sp})`, stopIds);
+    }
+    await pool.query(`DELETE FROM driver_sessions WHERE driver_id IN (${placeholders})`, ids);
+    await pool.query(`DELETE FROM drivers WHERE id IN (${placeholders})`, ids);
+    return { deletedDrivers: ids.length, deletedStops: stopIds.length };
+  },
 };
 
 // ---------------------------------------------------------------------------
@@ -269,9 +301,10 @@ const jsonQueries = {
     if (filters.to) stops = stops.filter((s) => (s.created_at || '') <= filters.to);
     return stops.sort((a, b) => (a.stop_number || 0) - (b.stop_number || 0));
   },
-  addStop: (db, stopNumber, address, status = 'pending', driverId = null, items = '') => {
+  addStop: (db, stopNumber, address, status = 'pending', driverId = null, items = '', extra = {}) => {
     const id = db.nextStopId();
-    db._store.stops.push({ id, stop_number: stopNumber, address, status, driver_id: driverId, items, created_at: new Date().toISOString() });
+    db._store.stops.push({ id, stop_number: stopNumber, address, status, driver_id: driverId, items, created_at: new Date().toISOString(),
+      session_id: extra.session_id || '', expira_en: extra.expira_en || null });
     db._save(); return id;
   },
   updateStop: (db, id, fields) => {
@@ -290,9 +323,10 @@ const jsonQueries = {
   setSetting: (db, key, value) => { db._store.settings[key] = parseFloat(value); db._save(); },
   getSettings: (db) => ({ ...db._store.settings }),
   savePod: (db, stopId, filePath) => { db._store.pods[stopId] = filePath; db._save(); },
-  addDriver: (db, name, pin, phone = '', email = '') => {
+  addDriver: (db, name, pin, phone = '', email = '', extra = {}) => {
     const id = (db._store.drivers.reduce((m, d) => Math.max(m, d.id || 0), 0)) + 1;
-    db._store.drivers.push({ id, name, pin: String(pin), phone, email: email || '', active: true, fuel_type: '', cost_per_km: 0 });
+    db._store.drivers.push({ id, name, pin: String(pin), phone, email: email || '', active: true, fuel_type: '', cost_per_km: 0,
+      is_demo: !!extra.is_demo, session_id: extra.session_id || '', expira_en: extra.expira_en || null });
     db._save(); return id;
   },
   updateDriverCost: (db, id, fuelType, costPerKm) => {
@@ -329,6 +363,23 @@ const jsonQueries = {
   },
   listSessions: (db, driverId) => {
     return (db._store.sessions || []).filter(s => s.driver_id === driverId).sort((a,b) => b.started_at.localeCompare(a.started_at));
+  },
+  cleanupExpired: (db) => {
+    const now = new Date().toISOString();
+    const expired = (db._store.drivers || []).filter(d => d.expira_en && new Date(d.expira_en) < new Date(now));
+    const ids = new Set(expired.map(d => d.id));
+    if (ids.size === 0) return { deletedDrivers: 0, deletedStops: 0 };
+    const beforeStops = (db._store.stops || []).length;
+    db._store.stops = (db._store.stops || []).filter(s => !ids.has(s.driver_id));
+    const deletedStops = beforeStops - db._store.stops.length;
+    // Limpiar incidents/pods/sessions cuyas paradas o drivers ya no existen
+    const stopIds = new Set(db._store.stops.map(s => s.id));
+    db._store.incidents = (db._store.incidents || []).filter(i => stopIds.has(i.stop_id));
+    db._store.pods = Object.fromEntries(Object.entries(db._store.pods || {}).filter(([k]) => stopIds.has(Number(k))));
+    db._store.sessions = (db._store.sessions || []).filter(s => !ids.has(s.driver_id));
+    db._store.drivers = (db._store.drivers || []).filter(d => !ids.has(d.id));
+    db._save();
+    return { deletedDrivers: ids.size, deletedStops };
   }
 };
 

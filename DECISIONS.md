@@ -169,6 +169,85 @@ El panel de incidencias cargaba desde `stops?status=incident` (paradas filtradas
 
 ---
 
+## 9. Blindaje de la demo: datos históricos inmutables + datos de visitante 24h
+
+**ADR:** [`docs/adr/007-blindaje-demo.md`](./docs/adr/007-blindaje-demo.md)
+
+### Decisión
+La demo de portfolio incluye 90 días de historia generada (`seed-historico.js`). Esos datos se marcan `is_demo=true` y quedan **solo lectura**: los 6 repartidores no pueden iniciar sesión (403), no se editan ni borran, y sus paradas tampoco. Todo lo que crea un visitante (repartidores, albaranes, paradas) lleva `session_id` y `expira_en` (24h), y un cron diario borra lo caducado.
+
+### Por qué
+- La demo debe verse como una empresa viva, no como un sandbox que cualquiera contamina.
+- Un reclutador debe poder **probar la app** (crear repartidores, entregar con firma) sin destrozar el histórico.
+- Sin caducidad, los datos de prueba se acumularían indefinidamente en la BD de producción.
+
+### Dónde está
+- `server/src/db.js` — columnas `is_demo`/`session_id`/`expira_en`, `cleanupExpired`
+- `server/src/routes/api.js` — bloqueos 403 en login/PATCH/DELETE, endpoint `/api/cleanup-expired`
+- `client-admin/src/App.jsx` — etiqueta "demo · solo lectura", candados, `session_id` en localStorage
+
+### Tradeoffs
+- Los repartidores demo no pueden probar la app con sus PIN: hay que crear uno propio (2 clics en la Torre de Control)
+- El cron de limpieza depende de que Hermes esté activo (patrón no_agent, silencioso)
+
+---
+
+## 10. Simulación diaria: la demo sigue viva sin intervención
+
+### Decisión
+`server/simulate-daily.js` se ejecuta cada madrugada (cron 06:00): resuelve pendientes de días anteriores, cierra jornadas activas con km plausible, abre la jornada de hoy con el odómetro continuando, y genera las rutas pendientes del día (15-30 paradas; sábados menos, domingos descanso). Idempotente: si hoy ya hay paradas, no duplica.
+
+### Por qué
+- Sin esto, la demo se congela: en 4 días no habría paradas de hoy y parecería una empresa abandonada.
+- Reutiliza el mismo patrón de `seed-historico.js` (misma semilla, misma distribución de estados).
+
+### Dónde está
+- `server/simulate-daily.js`
+
+---
+
+## 11. Formato numérico español en toda la interfaz
+
+### Decisión
+Todas las cifras de la Torre de Control se formatean en español: punto de miles (12.415), coma decimal (43,5), sin decimales si no los tiene (43). Implementado con formateo manual (`fmtNum`/`fmtEuro`), **no** con `toLocaleString('es-ES')`.
+
+### Por qué
+- Los km vienen de PostgreSQL como `NUMERIC(10,3)` y se mostraban como `43.000` (leíble como "43 mil").
+- `toLocaleString('es-ES')` omite el punto de miles cuando el grupo más alto tiene 1 dígito (5314 → "5314"), algo inaceptable en una demo en español.
+
+### Dónde está
+- `client-admin/src/App.jsx` — funciones `fmtNum` y `fmtEuro`
+
+---
+
+## 12. OPEX: solo el real, no estimaciones inventadas
+
+### Decisión
+Se eliminó la tarjeta "OPEX est." del dashboard. Solo se muestra el **OPEX real**: km registrados en jornadas cerradas × coste por tipo de combustible.
+
+### Por qué
+- La fórmula fija del estimado (entregas × 8 km + × 0,5 h) inflaba el kilometraje ~4,5x (88.288 km estimados vs 19.554 km reales) y mostraba 126.914 € frente a los 5.476 € reales. Era una cifra que no resistía una pregunta de un reclutador.
+
+### Dónde está
+- `client-admin/src/App.jsx` — cálculo de `opexReal` desde sesiones de conductores
+
+---
+
+## 13. Filtro de periodo global + rendimiento
+
+### Decisión
+Selector de periodo arriba de la Torre de Control (Mes actual por defecto, Mes anterior, Esta semana, Todo el histórico, Personalizado) que aplica a todas las pestañas. El listado de paradas **ya no incluye la firma base64** (el POD la genera bajo demanda): el payload bajó de ~15 MB a ~5 MB.
+
+### Por qué
+- Cargar 12.341 paradas con 11 MB de firmas base64 en cada apertura hacía la demo lenta en móvil (6+ s).
+- El histórico no se pierde: con "Todo el histórico" se ve completo.
+
+### Dónde está
+- `server/src/routes/api.js` — `from`/`to` en `/stops`, `/incidents`, `/driver/sessions`, `/dashboard-data`
+- `client-admin/src/App.jsx` — selector de periodo
+
+---
+
 ## Stack actual
 
 | Componente | Tecnología |

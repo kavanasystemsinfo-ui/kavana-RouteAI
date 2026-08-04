@@ -39,6 +39,18 @@ function authFetch(url, opts = {}) {
   return fetch(url, { ...opts, headers });
 }
 
+// Etiqueta de visitante de la demo: persiste en localStorage.
+// Los repartidores y paradas que cree este visitante caducan a las 24h.
+function getSessionId() {
+  const KEY = 'rf_session_id';
+  let sid = localStorage.getItem(KEY);
+  if (!sid) {
+    sid = `vis-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+    localStorage.setItem(KEY, sid);
+  }
+  return sid;
+}
+
 export default function App() {
   const [logged, setLogged] = useState(false);
   const [pin, setPin] = useState('');
@@ -451,7 +463,7 @@ function DriversSection({ API_BASE, drivers, loadAll }) {
   const add = async (e) => {
     e.preventDefault();
     setMsg('');
-    const res = await authFetch(`${API_BASE}/drivers`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name, pin, phone, email }) });
+    const res = await authFetch(`${API_BASE}/drivers`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name, pin, phone, email, session_id: getSessionId() }) });
     const data = await res.json().catch(() => ({}));
     setName(''); setPin(''); setPhone(''); setEmail(''); loadAll();
     if (data.emailSent) setMsg(`Email de bienvenida enviado a ${email}`);
@@ -477,21 +489,29 @@ function DriversSection({ API_BASE, drivers, loadAll }) {
         <tbody>
           {drivers.map(d => (
             <tr key={d.id} style={{borderTop: `1px solid ${C.border}`}}>
-              <td style={td}>{d.name}</td>
+              <td style={td}>{d.name} {d.is_demo && <span style={{fontSize: 10, color: C.muted, background: C.panel2, borderRadius: 4, padding: '2px 6px'}}>demo · solo lectura</span>}</td>
               <td style={td}>{d.pin}</td>
               <td style={td}>{d.phone}</td>
               <td style={td}>{d.email || '—'}</td>
               <td style={td}>
-                <select value={d.fuel_type || ''} onChange={e => authFetch(`${API_BASE}/drivers/${d.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ fuel_type: e.target.value }) }).then(loadAll)} style={{...input, padding: '4px 6px', fontSize: 12}}>
-                  <option value="">—</option>
-                  <option value="diesel">Diésel</option>
-                  <option value="gasolina">Gasolina</option>
-                  <option value="electrico">Eléctrico</option>
-                  <option value="hibrido">Híbrido</option>
-                </select>
+                {d.is_demo ? (
+                  <span style={{color: C.muted, fontSize: 12}}>{d.fuel_type || '—'}</span>
+                ) : (
+                  <select value={d.fuel_type || ''} onChange={e => authFetch(`${API_BASE}/drivers/${d.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ fuel_type: e.target.value }) }).then(loadAll)} style={{...input, padding: '4px 6px', fontSize: 12}}>
+                    <option value="">—</option>
+                    <option value="diesel">Diésel</option>
+                    <option value="gasolina">Gasolina</option>
+                    <option value="electrico">Eléctrico</option>
+                    <option value="hibrido">Híbrido</option>
+                  </select>
+                )}
               </td>
               <td style={td}>{d.active ? <span style={{color: C.green}}>Activo</span> : <span style={{color: C.muted}}>Inactivo</span>}</td>
-              <td style={td}><button onClick={() => toggle(d.id, d.active)} style={{...btn, padding: '6px 10px', fontSize: 12}}>{d.active ? 'Desactivar' : 'Activar'}</button></td>
+              <td style={td}>
+                {d.is_demo
+                  ? <span style={{color: C.muted, fontSize: 12}}>🔒</span>
+                  : <button onClick={() => toggle(d.id, d.active)} style={{...btn, padding: '6px 10px', fontSize: 12}}>{d.active ? 'Desactivar' : 'Activar'}</button>}
+              </td>
             </tr>
           ))}
           {drivers.length === 0 && <tr><td style={td} colSpan={7} style={{color: C.muted}}>Sin repartidores.</td></tr>}
@@ -536,7 +556,9 @@ function StopsSection({ API_BASE, token, stops, drivers, driverName, filterDrive
                   {s.items ? (() => { try { const items = JSON.parse(s.items).filter(i => i.checked); return items.length > 0 ? `${fmtNum(items.length)} bultos` : '—'; } catch { return '—'; } })() : '—'}
                 </td>
                 <td style={td}>
-                  <button onClick={() => handleDelete(s.id)} style={{background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: 14, padding: '4px 8px'}} title="Eliminar parada">🗑️</button>
+                  {s.is_demo
+                    ? <span style={{color: C.muted, fontSize: 12}} title="Parada de la demo histórica (solo lectura)">🔒</span>
+                    : <button onClick={() => handleDelete(s.id)} style={{background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: 14, padding: '4px 8px'}} title="Eliminar parada">🗑️</button>}
                 </td>
               </tr>
             );

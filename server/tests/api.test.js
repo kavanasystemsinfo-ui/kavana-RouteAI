@@ -294,3 +294,74 @@ function poolInsertSession(db, driverId, startedAtIso) {
   db._save();
   return id;
 }
+
+test('login de repartidor demo (is_demo) se bloquea con 403', async () => {
+  const { server, base, db } = await startServer();
+  const q = db.queries;
+  try {
+    const drvId = await q.addDriver(db, 'Demo', '9999', '', '', { is_demo: true });
+    const res = await fetch(`${base}/api/drivers/login`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ pin: '9999' }) });
+    assert.equal(res.status, 403);
+    const data = await res.json();
+    assert.ok(data.error.includes('demo'), 'el error debe mencionar la demo');
+    void drvId;
+  } finally { server.close(); }
+});
+
+test('PATCH /drivers/:id sobre repartidor demo se bloquea con 403', async () => {
+  const { server, base, db } = await startServer();
+  const q = db.queries;
+  try {
+    const drvId = await q.addDriver(db, 'Demo2', '8888', '', '', { is_demo: true });
+    const ologin = await fetch(`${base}/api/office/login`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ pin: '0000' }) });
+    const { token: otok } = await ologin.json();
+    const res = await fetch(`${base}/api/drivers/${drvId}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json', ...authH(otok) }, body: JSON.stringify({ active: false }) });
+    assert.equal(res.status, 403);
+  } finally { server.close(); }
+});
+
+test('PATCH y DELETE sobre parada de repartidor demo se bloquean con 403', async () => {
+  const { server, base, db } = await startServer();
+  const q = db.queries;
+  try {
+    const drvId = await q.addDriver(db, 'Demo3', '7777', '', '', { is_demo: true });
+    const stopId = await q.addStop(db, Date.now(), 'C/ Demo 1', 'pending', drvId);
+    const dlogin = await fetch(`${base}/api/drivers/login`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ pin: '9999' }) });
+    // login demo falla, asi que probamos con un driver normal para el token
+    const drvOk = await q.addDriver(db, 'Normal', '1111');
+    const dlogin2 = await fetch(`${base}/api/drivers/login`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ pin: '1111' }) });
+    const { token: dtok } = await dlogin2.json();
+    void dlogin;
+
+    const patch = await fetch(`${base}/api/stops/${stopId}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json', ...authH(dtok) }, body: JSON.stringify({ status: 'delivered', signature: 'data:image/png;base64,AAAA' }) });
+    assert.equal(patch.status, 403);
+    const del = await fetch(`${base}/api/stops/${stopId}`, { method: 'DELETE', headers: { ...authH(dtok) } });
+    assert.equal(del.status, 403);
+  } finally { server.close(); }
+});
+
+test('cleanupExpired borra solo drivers de visitante expirados', async () => {
+  const { server, base, db } = await startServer();
+  const q = db.queries;
+  try {
+    // Driver demo (no expira) y driver de visitante expirado
+    await q.addDriver(db, 'DemoBase', '6666', '', '', { is_demo: true });
+    const expirado = await q.addDriver(db, 'Visitante', '5555', '', '', {
+      session_id: 'vis-1', expira_en: new Date(Date.now() - 3600000).toISOString(),
+    });
+    const stopExp = await q.addStop(db, Date.now(), 'C/ Visitante 1', 'pending', expirado, '', {
+      session_id: 'vis-1', expira_en: new Date(Date.now() - 3600000).toISOString(),
+    });
+    void stopExp;
+
+    const ologin = await fetch(`${base}/api/office/login`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ pin: '0000' }) });
+    const { token: otok } = await ologin.json();
+    const res = await fetch(`${base}/api/cleanup-expired`, { method: 'POST', headers: { ...authH(otok) } });
+    const data = await res.json();
+    assert.equal(data.success, true);
+    assert.equal(data.deletedDrivers, 1);
+    assert.equal(data.deletedStops, 1);
+    const restantes = await q.listDrivers(db);
+    assert.equal(restantes.length, 1, 'solo debe quedar el driver demo base');
+  } finally { server.close(); }
+});

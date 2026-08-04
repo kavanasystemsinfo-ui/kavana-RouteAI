@@ -292,17 +292,17 @@ async function main() {
   for (const rep of REPARTIDORES) {
     if (pinsExistentes.has(rep.pin)) {
       const existing = driverRows.rows.find((r) => String(r.pin) === rep.pin);
-      await pool.query('UPDATE drivers SET fuel_type=$1 WHERE id=$2', [rep.fuel_type, existing.id]);
+      await pool.query('UPDATE drivers SET fuel_type=$1, is_demo=true WHERE id=$2', [rep.fuel_type, existing.id]);
       driverIds.push(existing.id);
     } else {
       const r = await pool.query(
-        'INSERT INTO drivers (name, pin, phone, email, active, fuel_type) VALUES ($1,$2,$3,$4,true,$5) RETURNING id',
+        'INSERT INTO drivers (name, pin, phone, email, active, fuel_type, is_demo) VALUES ($1,$2,$3,$4,true,$5,true) RETURNING id',
         [rep.name, rep.pin, '', '', rep.fuel_type]
       );
       driverIds.push(r.rows[0].id);
     }
   }
-  console.log(`  • ${driverIds.length} repartidores listos.`);
+  console.log(`  • ${driverIds.length} repartidores listos (marcados is_demo, solo lectura).`);
 
   // Odómetros por repartidor (km acumulados día a día)
   const odometros = REPARTIDORES.map((r) => r.baseKm);
