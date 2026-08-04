@@ -253,7 +253,8 @@ export default function App() {
           ['signatures', 'Firmas'],
           ['incidents', 'Incidencias'],
           ['sessions', 'Jornadas'],
-          ['costes', 'Costes']
+          ['costes', 'Costes'],
+          ['assistant', 'Asistente']
         ].map(([key, label]) => (
           <button key={key} onClick={() => setSection(key)} style={{textAlign: 'left', padding: '12px 14px', marginBottom: 6, borderRadius: 8, border: 'none', cursor: 'pointer', fontWeight: 700, background: section === key ? C.accent : 'transparent', color: section === key ? '#000' : S.text}}>{label}</button>
         ))}
@@ -448,6 +449,19 @@ export default function App() {
             </div>
           </div>
         )}
+        {section === 'assistant' && (
+          <div style={{display: 'flex', flexDirection: 'column', height: 'calc(100vh - 180px)', minHeight: 420}}>
+            <h2 style={{marginTop: 0}}>Asistente técnico</h2>
+            <p style={{color: C.muted, fontSize: 13, marginBottom: 16}}>Responde con la documentación, ADRs y decisiones reales del proyecto. Perfecto para que un reclutador pregunte cómo funciona Route AI sin necesidad de conocer el código.</p>
+            <div style={{flex: 1, display: 'flex', flexDirection: 'column', background: C.panel, border: `1px solid ${C.border}`, borderRadius: 14, overflow: 'hidden'}}>
+              <div style={{padding: '14px 16px', background: C.panel2, borderBottom: `1px solid ${C.border}`}}>
+                <div style={{fontWeight: 900, fontSize: 14}}>💬 Asistente técnico de Route AI</div>
+                <div style={{fontSize: 11, color: C.muted, marginTop: 2}}>Responde con la documentación, ADRs y decisiones reales del proyecto.</div>
+              </div>
+              <AssistantChat API_BASE={API_BASE} />
+            </div>
+          </div>
+        )}
         {loading && <div style={{position: 'fixed', bottom: 16, right: 16, background: C.panel2, padding: '8px 14px', borderRadius: 8, fontSize: 12}}>Actualizando…</div>}
       </main>
     </div>
@@ -620,9 +634,9 @@ function Filters({ driversList, filterDriver, setFilterDriver, filterStatus, set
 const input = { padding: '8px 10px', background: C.panel, border: `1px solid ${C.border}`, borderRadius: 8, color: C.text, fontSize: 13 };
 const btn = { padding: '10px 14px', background: C.accent, color: '#000', border: 'none', borderRadius: 8, fontWeight: 800, cursor: 'pointer' };
 
-// Asistente técnico: chat flotante que responde con la documentación real del proyecto.
-function AssistantWidget({ API_BASE }) {
-  const [open, setOpen] = useState(false);
+// Asistente técnico: chat que responde con la documentación real del proyecto.
+// Reutilizado en el widget flotante (login) y en la pestaña Asistente de la Torre de Control.
+function AssistantChat({ API_BASE }) {
   const [q, setQ] = useState('');
   const [msgs, setMsgs] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -664,6 +678,39 @@ function AssistantWidget({ API_BASE }) {
 
   return (
     <>
+      <div ref={boxRef} style={{flex: 1, overflowY: 'auto', padding: 12, minHeight: 200, fontSize: 13, lineHeight: 1.5}}>
+        {msgs.length === 0 && (
+          <div style={{color: C.muted, fontSize: 12}}>
+            <div style={{marginBottom: 10}}>Pregunta lo que quieras sobre el proyecto (arquitectura, decisiones, seguridad, tests...).</div>
+            {sugerencias.map((s) => (
+              <button key={s} onClick={() => { setQ(s); }} style={{display: 'block', width: '100%', textAlign: 'left', marginBottom: 6, padding: '8px 10px', background: C.panel2, border: `1px solid ${C.border}`, borderRadius: 8, color: C.text, cursor: 'pointer', fontSize: 12}}>{s}</button>
+            ))}
+          </div>
+        )}
+        {msgs.map((m, i) => (
+          <div key={i} style={{marginBottom: 10, textAlign: m.role === 'user' ? 'right' : 'left'}}>
+            <div style={{display: 'inline-block', maxWidth: '85%', padding: '8px 12px', borderRadius: 10, whiteSpace: 'pre-wrap',
+              background: m.role === 'user' ? C.accent : C.panel2, color: m.role === 'user' ? '#000' : C.text,
+              border: m.role === 'user' ? 'none' : `1px solid ${C.border}`, fontSize: 13}}>{m.text}</div>
+          </div>
+        ))}
+        {loading && <div style={{color: C.muted, fontSize: 12}}>Pensando…</div>}
+      </div>
+      <form onSubmit={enviar} style={{padding: 10, borderTop: `1px solid ${C.border}`, display: 'flex', gap: 8}}>
+        <input value={q} onChange={e => setQ(e.target.value)} placeholder="Pregunta sobre el proyecto…" maxLength={500}
+          style={{flex: 1, padding: '10px 12px', background: C.panel2, border: `1px solid ${C.border}`, borderRadius: 8, color: C.text, fontSize: 13}} />
+        <button type="submit" disabled={loading} style={{...btn, padding: '10px 16px'}}>→</button>
+      </form>
+    </>
+  );
+}
+
+// Widget flotante del asistente, visible en la pantalla de login (sin PIN).
+function AssistantWidget({ API_BASE }) {
+  const [open, setOpen] = useState(false);
+
+  return (
+    <>
       {/* Botón flotante */}
       <button onClick={() => setOpen(!open)}
         style={{position: 'fixed', right: 24, bottom: 24, zIndex: 1000, width: 60, height: 60, borderRadius: '50%', border: 'none',
@@ -679,29 +726,7 @@ function AssistantWidget({ API_BASE }) {
             <div style={{fontWeight: 900, fontSize: 14}}>💬 Asistente técnico de Route AI</div>
             <div style={{fontSize: 11, color: C.muted, marginTop: 2}}>Responde con la documentación, ADRs y decisiones reales del proyecto.</div>
           </div>
-          <div ref={boxRef} style={{flex: 1, overflowY: 'auto', padding: 12, minHeight: 200, fontSize: 13, lineHeight: 1.5}}>
-            {msgs.length === 0 && (
-              <div style={{color: C.muted, fontSize: 12}}>
-                <div style={{marginBottom: 10}}>Pregunta lo que quieras sobre el proyecto (arquitectura, decisiones, seguridad, tests...).</div>
-                {sugerencias.map((s) => (
-                  <button key={s} onClick={() => { setQ(s); }} style={{display: 'block', width: '100%', textAlign: 'left', marginBottom: 6, padding: '8px 10px', background: C.panel2, border: `1px solid ${C.border}`, borderRadius: 8, color: C.text, cursor: 'pointer', fontSize: 12}}>{s}</button>
-                ))}
-              </div>
-            )}
-            {msgs.map((m, i) => (
-              <div key={i} style={{marginBottom: 10, textAlign: m.role === 'user' ? 'right' : 'left'}}>
-                <div style={{display: 'inline-block', maxWidth: '85%', padding: '8px 12px', borderRadius: 10, whiteSpace: 'pre-wrap',
-                  background: m.role === 'user' ? C.accent : C.panel2, color: m.role === 'user' ? '#000' : C.text,
-                  border: m.role === 'user' ? 'none' : `1px solid ${C.border}`, fontSize: 13}}>{m.text}</div>
-              </div>
-            ))}
-            {loading && <div style={{color: C.muted, fontSize: 12}}>Pensando…</div>}
-          </div>
-          <form onSubmit={enviar} style={{padding: 10, borderTop: `1px solid ${C.border}`, display: 'flex', gap: 8}}>
-            <input value={q} onChange={e => setQ(e.target.value)} placeholder="Pregunta sobre el proyecto…" maxLength={500}
-              style={{flex: 1, padding: '10px 12px', background: C.panel2, border: `1px solid ${C.border}`, borderRadius: 8, color: C.text, fontSize: 13}} />
-            <button type="submit" disabled={loading} style={{...btn, padding: '10px 16px'}}>→</button>
-          </form>
+          <AssistantChat API_BASE={API_BASE} />
         </div>
       )}
     </>
