@@ -44,6 +44,9 @@ CREATE TABLE IF NOT EXISTS stops (
 
 ALTER TABLE stops ALTER COLUMN stop_number TYPE BIGINT;
 
+ALTER TABLE stops ADD COLUMN IF NOT EXISTS items TEXT DEFAULT '';
+ALTER TABLE stops ADD COLUMN IF NOT EXISTS delivery_notes TEXT DEFAULT '';
+
 CREATE TABLE IF NOT EXISTS incidents (
   id SERIAL PRIMARY KEY,
   stop_id INTEGER REFERENCES stops(id),
@@ -66,9 +69,9 @@ CREATE TABLE IF NOT EXISTS pods (
 CREATE TABLE IF NOT EXISTS driver_sessions (
   id SERIAL PRIMARY KEY,
   driver_id INTEGER REFERENCES drivers(id),
-  km_initial NUMERIC(10,1),
-  km_final NUMERIC(10,1),
-  km_total NUMERIC(10,1),
+  km_initial NUMERIC(10,3),
+  km_final NUMERIC(10,3),
+  km_total NUMERIC(10,3),
   date DATE DEFAULT CURRENT_DATE,
   started_at TIMESTAMP DEFAULT NOW(),
   ended_at TIMESTAMP,
@@ -78,6 +81,11 @@ CREATE TABLE IF NOT EXISTS driver_sessions (
 -- Migración: añadir columnas de coste por vehículo (si no existen)
 ALTER TABLE drivers ADD COLUMN IF NOT EXISTS fuel_type TEXT DEFAULT '';
 ALTER TABLE drivers ADD COLUMN IF NOT EXISTS cost_per_km NUMERIC(10,2) DEFAULT 0;
+
+-- Migración: ampliar decimales de km (1 → 3 decimales)
+ALTER TABLE driver_sessions ALTER COLUMN km_initial TYPE NUMERIC(10,3);
+ALTER TABLE driver_sessions ALTER COLUMN km_final TYPE NUMERIC(10,3);
+ALTER TABLE driver_sessions ALTER COLUMN km_total TYPE NUMERIC(10,3);
 `;
 
 // ---------------------------------------------------------------------------
@@ -132,10 +140,10 @@ const pgQueries = {
     const res = await pool.query(sql, params);
     return res.rows;
   },
-  addStop: async (pool, stopNumber, address, status = 'pending', driverId = null) => {
+  addStop: async (pool, stopNumber, address, status = 'pending', driverId = null, items = '') => {
     const res = await pool.query(
-      'INSERT INTO stops (stop_number, address, status, driver_id) VALUES ($1,$2,$3,$4) RETURNING id',
-      [stopNumber, address, status, driverId]
+      'INSERT INTO stops (stop_number, address, status, driver_id, items) VALUES ($1,$2,$3,$4,$5) RETURNING id',
+      [stopNumber, address, status, driverId, items]
     );
     return res.rows[0].id;
   },
@@ -148,8 +156,16 @@ const pgQueries = {
     params.push(id);
     await pool.query(`UPDATE stops SET ${set.join(', ')} WHERE id = $${idx}`, params);
   },
-  deleteStop: async (pool, id) => { await pool.query('DELETE FROM stops WHERE id = $1', [id]); },
-  clearStops: async (pool) => { await pool.query('DELETE FROM stops'); },
+  deleteStop: async (pool, id) => {
+    await pool.query('DELETE FROM incidents WHERE stop_id = $1', [id]);
+    await pool.query('DELETE FROM pods WHERE stop_id = $1', [id]);
+    await pool.query('DELETE FROM stops WHERE id = $1', [id]);
+  },
+  clearStops: async (pool) => {
+    await pool.query('DELETE FROM incidents');
+    await pool.query('DELETE FROM pods');
+    await pool.query('DELETE FROM stops');
+  },
   addIncident: async (pool, stopId, type, photo, notes) => {
     await pool.query(
       'INSERT INTO incidents (stop_id, type, photo_data, notes) VALUES ($1,$2,$3,$4)',
@@ -206,7 +222,7 @@ const pgQueries = {
     return res.rows[0].id;
   },
   endSession: async (pool, sessionId, kmFinal) => {
-    const kmTotal = parseFloat((kmFinal - (await pool.query('SELECT km_initial FROM driver_sessions WHERE id=$1', [sessionId])).rows[0].km_initial).toFixed(1));
+    const kmTotal = parseFloat((kmFinal - (await pool.query('SELECT km_initial FROM driver_sessions WHERE id=$1', [sessionId])).rows[0].km_initial).toFixed(3));
     await pool.query(
       'UPDATE driver_sessions SET km_final=$1, km_total=$2, ended_at=NOW(), status=\'closed\' WHERE id=$3',
       [kmFinal, kmTotal, sessionId]
@@ -250,9 +266,9 @@ const jsonQueries = {
     if (filters.to) stops = stops.filter((s) => (s.created_at || '') <= filters.to);
     return stops.sort((a, b) => (a.stop_number || 0) - (b.stop_number || 0));
   },
-  addStop: (db, stopNumber, address, status = 'pending', driverId = null) => {
+  addStop: (db, stopNumber, address, status = 'pending', driverId = null, items = '') => {
     const id = db.nextStopId();
-    db._store.stops.push({ id, stop_number: stopNumber, address, status, driver_id: driverId, created_at: new Date().toISOString() });
+    db._store.stops.push({ id, stop_number: stopNumber, address, status, driver_id: driverId, items, created_at: new Date().toISOString() });
     db._save(); return id;
   },
   updateStop: (db, id, fields) => {
@@ -300,7 +316,7 @@ const jsonQueries = {
     const session = (db._store.sessions || []).find(s => s.id === sessionId);
     if (!session) throw new Error('Sesión no encontrada');
     session.km_final = kmFinal;
-    session.km_total = parseFloat((kmFinal - session.km_initial).toFixed(1));
+    session.km_total = parseFloat((kmFinal - session.km_initial).toFixed(3));
     session.ended_at = new Date().toISOString();
     session.status = 'closed';
     db._save(); return session.km_total;

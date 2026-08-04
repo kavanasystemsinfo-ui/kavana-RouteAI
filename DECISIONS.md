@@ -116,6 +116,59 @@ El backend (API NestJS) se despliega en Render.
 
 ---
 
+## 6. Checklist de bultos en app del repartidor
+
+*(Decisión menor documentada aquí, sin ADR separado)*
+
+### Decisión
+Se implementó un sistema de checklist de productos/bultos en la app del repartidor. El placeholder gris "Confirmar bultos al entregar" se reemplazó por un modal funcional donde el conductor añade productos con cantidad, los marca como entregados y se guardan con la parada.
+
+### Por qué
+- El flujo real de reparto requiere que el conductor verifique qué productos entrega
+- Sin esto, no hay control sobre si se entregó todo o faltó algo
+- Los bultos aparecen en el PDF del POD y en la columna "Bultos" de la Torre de Control
+
+### Dónde está
+- `client/src/components/ItemsModal.jsx` — modal de gestión de bultos
+- `client/src/App.jsx` — integración en el flujo de entrega
+- `client/src/services/podService.js` — inclusión en el PDF del POD
+- `client-admin/src/App.jsx` — columna "Bultos" en Repartos
+- `server/src/db.js` — campo `items` (JSON) en tabla stops
+
+---
+
+## 7. Incidencias: carga desde tabla propia
+
+### Decisión
+El panel de incidencias cargaba desde `stops?status=incident` (paradas filtradas), pero los datos reales están en la tabla `incidents`. Se creó `GET /api/incidents` que devuelve las incidencias reales con nombre del conductor y dirección. Las fotos pasaron de base64 en BD a archivos en disco.
+
+### Por qué
+- Las incidencias se guardaban en `incidents` pero el panel leía de `stops`
+- Los campos `type`, `notes`, `photo_data` no existen en `stops`
+- Las fotos en base64 ocupaban 2-10MB cada una en la BD
+
+### Dónde está
+- `server/src/routes/api.js` — endpoint `GET /api/incidents`
+- `server/src/db.js` — función `listIncidents`
+- `server/src/index.js` — ruta estática `/incidents`
+- `client-admin/src/App.jsx` — panel ahora usa `/api/incidents`
+
+---
+
+## 8. Bugfix: Foreign keys al borrar paradas
+
+### Decisión
+`DELETE FROM stops` fallaba (500) por FK a `incidents` y `pods`. Se modificaron `clearStops` y `deleteStop` para borrar hijos primero.
+
+### Por qué
+- PostgreSQL no permite borrar padre si hay hijos referenciándolo
+- Afectaba al botón "BORRAR RUTA" de la app del repartidor
+
+### Dónde está
+- `server/src/db.js` — funciones `clearStops` y `deleteStop`
+
+---
+
 ## Stack actual
 
 | Componente | Tecnología |

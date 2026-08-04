@@ -26,6 +26,11 @@ let STATUS = {
 };
 
 const AUTH_PREF = 'Bea'.concat('rer ');
+
+// Estilos de tabla compartidos (evita ReferenceError en secciones fuera de StopsSection)
+const th = { padding: '10px 8px', borderBottom: '1px solid #272c36' };
+const td = { padding: '10px 8px' };
+
 // fetch autenticado: inyecta el JWT de oficina desde sessionStorage.
 function authFetch(url, opts = {}) {
   const token = sessionStorage.getItem('rf_office_token');
@@ -218,7 +223,7 @@ export default function App() {
           <StopsSection API_BASE={API_BASE} token={token} stops={filteredStops} drivers={drivers} driverName={driverName}
             filterDriver={filterDriver} setFilterDriver={setFilterDriver}
             filterStatus={filterStatus} setFilterStatus={setFilterStatus}
-            from={from} setFrom={setFrom} to={to} setTo={setTo} driversList={drivers} />
+            from={from} setFrom={setFrom} to={to} setTo={setTo} driversList={drivers} onDelete={loadAll} />
         )}
 
         {section === 'sendRoute' && (
@@ -252,7 +257,7 @@ export default function App() {
                     <td style={td}>{inc.notes}</td>
                   </tr>
                 ))}
-                {incidents.length === 0 && <tr><td style={td} colSpan={5} style={{color: C.muted}}>Sin incidencias.</td></tr>}
+                {incidents.length === 0 && <tr><td colSpan={5} style={{...td, color: C.muted}}>Sin incidencias.</td></tr>}
               </tbody>
             </table>
           </div>
@@ -270,12 +275,12 @@ export default function App() {
                   const costKm = settings[fuelKey] || settings.cost_per_km || 0.3;
                   return (
                   <tr key={s.id} style={{borderTop: `1px solid ${C.border}`}}>
-                    <td style={td}>{s.driver_name}</td>
+                    <td style={td}>{driver?.name || '—'}</td>
                     <td style={td}>{(s.started_at || '').slice(0, 16).replace('T', ' ')}</td>
                     <td style={td}>{s.km_initial} km</td>
                     <td style={td}>{s.km_final} km</td>
                     <td style={td}><strong>{s.km_total} km</strong></td>
-                    <td style={td}>€{(parseFloat(s.km_total || 0) * costKm).toFixed(2)} {driverCost ? '' : '(default)'}</td>
+                    <td style={td}>€{(parseFloat(s.km_total || 0) * costKm).toFixed(2)} {driver?.fuel_type ? '' : '(default)'}</td>
                   </tr>
                   );
                 })}
@@ -346,8 +351,7 @@ export default function App() {
   );
 }
 
-const th = { padding: '10px 8px', borderBottom: `1px solid #272c36` };
-const td = { padding: '10px 8px' };
+// Estilos de tabla ya definidos arriba (th, td)
 
 function DriversSection({ API_BASE, drivers, loadAll }) {
   const [name, setName] = useState('');
@@ -408,13 +412,21 @@ function DriversSection({ API_BASE, drivers, loadAll }) {
   );
 }
 
-function StopsSection({ API_BASE, token, stops, drivers, driverName, filterDriver, setFilterDriver, filterStatus, setFilterStatus, from, setFrom, to, setTo, driversList }) {
+function StopsSection({ API_BASE, token, stops, drivers, driverName, filterDriver, setFilterDriver, filterStatus, setFilterStatus, from, setFrom, to, setTo, driversList, onDelete }) {
+  const handleDelete = async (stopId) => {
+    if (!confirm('¿Eliminar esta parada?')) return;
+    try {
+      const res = await authFetch(`${API_BASE}/stops/${stopId}`, { method: 'DELETE' });
+      if (res.ok) onDelete();
+      else alert('Error al eliminar');
+    } catch (e) { alert('Error de conexión'); }
+  }; 
   return (
     <div>
       <h2>Repartos</h2>
       <Filters driversList={driversList} filterDriver={filterDriver} setFilterDriver={setFilterDriver} filterStatus={filterStatus} setFilterStatus={setFilterStatus} from={from} setFrom={setFrom} to={to} setTo={setTo} />
       <table style={{width: '100%', borderCollapse: 'collapse', fontSize: 13}}>
-        <thead><tr style={{color: C.muted, textAlign: 'left'}}><th style={th}>#</th><th style={th}>Dirección</th><th style={th}>Repartidor</th><th style={th}>Cliente</th><th style={th}>Estado</th><th style={th}>Fecha</th><th style={th}>POD</th></tr></thead>
+        <thead><tr style={{color: C.muted, textAlign: 'left'}}><th style={th}>#</th><th style={th}>Dirección</th><th style={th}>Repartidor</th><th style={th}>Cliente</th><th style={th}>Estado</th><th style={th}>Fecha</th><th style={th}>POD</th><th style={th}>Bultos</th><th style={th}></th></tr></thead>
         <tbody>
           {stops.map(s => {
             const st = STATUS[s.status] || STATUS.pending;
@@ -430,6 +442,12 @@ function StopsSection({ API_BASE, token, stops, drivers, driverName, filterDrive
                   {s.status === 'delivered' && (
                     <a href={`${API_BASE}/stops/${s.id}/pod?token=${token}`} target="_blank" rel="noreferrer" style={{color: C.accent, fontWeight: 700}}>POD</a>
                   )}
+                </td>
+                <td style={td}>
+                  {s.items ? (() => { try { const items = JSON.parse(s.items).filter(i => i.checked); return items.length > 0 ? `${items.length} bultos` : '—'; } catch { return '—'; } })() : '—'}
+                </td>
+                <td style={td}>
+                  <button onClick={() => handleDelete(s.id)} style={{background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: 14, padding: '4px 8px'}} title="Eliminar parada">🗑️</button>
                 </td>
               </tr>
             );
@@ -514,12 +532,13 @@ function SendRouteSection({ API_BASE, token, drivers, loadAll }) {
       // Paso 2: Crear paradas en bulk para el repartidor seleccionado
       const bulkRes = await authFetch(`${API_BASE}/stops/bulk`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ addresses: ocrData.addresses, driver_id: Number(selDriver) })
+        body: JSON.stringify({ addresses: ocrData.addresses, items: ocrData.items || [], driver_id: Number(selDriver) })
       });
       const bulkData = await bulkRes.json();
       if (bulkData.success) {
         const driverName = drivers.find(d => String(d.id) === String(selDriver))?.name || `ID ${selDriver}`;
-        setResult(`✅ ${bulkData.total} paradas enviadas a ${driverName}. Ya puede verlas en su app.`);
+        const itemsCount = ocrData.items?.length || 0;
+        setResult(`✅ ${bulkData.total} paradas enviadas a ${driverName}${itemsCount > 0 ? ` con ${itemsCount} bultos precargados` : ''}. Ya puede verlas en su app.`);
         fileRef.current.value = '';
         loadAll();
       } else {

@@ -25,6 +25,22 @@ export function generatePodBlob(stop, signature, geo = null) {
     doc.text(`Geolocalizacion: ${geo.lat.toFixed(5)}, ${geo.lng.toFixed(5)}`, 50, y); y += 20;
   }
 
+  // Items entregados
+  if (stop.items) {
+    let items = [];
+    try { items = JSON.parse(stop.items); } catch {}
+    const checked = items.filter(i => i.checked);
+    if (checked.length > 0) {
+      y += 10;
+      doc.setFontSize(12);
+      doc.text('Bultos entregados:', 50, y); y += 16;
+      doc.setFontSize(10);
+      for (const item of checked) {
+        doc.text(`  ${item.qty}x ${item.name}`, 50, y); y += 14;
+      }
+    }
+  }
+
   y += 20;
   doc.text('Firma del receptor:', 50, y);
   if (signature && signature.startsWith('data:image')) {

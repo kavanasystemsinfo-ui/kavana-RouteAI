@@ -195,18 +195,67 @@ export default function apiRouter(db) {
       fs.writeFileSync(tmpPath, buffer);
       const result = await processManifestImage(tmpPath, isPdf, isCsv);
       let addresses = [];
+      // Extraer items directamente aqui (evita depender de la version desplegada de ocrService)
+      const items = [];
+      const stopKeywords = ['total', 'subtotal', 'iva', 'importe', 'firma', 'recibi', 'entregado', 'observaciones', 'notas', 'cliente', 'direccion', 'fecha', 'albaran', 'nº', 'telefono', 'contacto'];
+      if (result.raw) {
+        const allLines = result.raw.split('\n');
+        for (const line of allLines) {
+          const trimmed = line.trim();
+          if (!trimmed) continue;
+          const lower = trimmed.toLowerCase();
+          if (stopKeywords.some(kw => lower.startsWith(kw))) continue;
+          // Patron tabla con codigo: "1  VIN-001  Producto    6  ..."
+          let m = trimmed.match(/^\d+\s+([A-Z]{2,5}-\d{2,5})\s+(.+?)\s{2,}(\d{1,4})\s/i);
+          if (m) {
+            const qty = parseInt(m[3], 10);
+            const name = m[2].trim();
+            if (qty > 0 && qty < 10000 && name.length > 1 && !name.match(/\d{5}/)) {
+              items.push({ name: name.replace(/^[-.\s]+|[-.\s]+$/g, '').replace(/\s{2,}/g, ' ').trim(), qty, checked: false });
+            }
+            continue;
+          }
+          // Patron tabla sin codigo: "1  Producto    6  ..."
+          m = trimmed.match(/^\d+\s+([A-ZÁÉÍÓÚÑ][A-Za-záéíóúñÁÉÍÓÚÑ][\w\sáéíóúñÁÉÍÓÚÑ()%+\-.]{3,}?)\s{2,}(\d{1,4})\s/i);
+          if (m) {
+            const qty = parseInt(m[2], 10);
+            const name = m[1].trim();
+            if (qty > 0 && qty < 10000 && name.length > 1 && !name.match(/\d{5}/)) {
+              items.push({ name: name.replace(/^[-.\s]+|[-.\s]+$/g, '').replace(/\s{2,}/g, ' ').trim(), qty, checked: false });
+            }
+          }
+        }
+      }
       if (result.raw) {
         const lines = result.raw.split('\n');
+        // Palabras que indican que una linea NO es una direccion de entrega
+        const skipPatterns = [
+          /^[A-Z\s]{5,}$/,           // TODO MAYUSCULAS (nombres de empresa)
+          /CIF|NIF|DNI/i,             // identificadores fiscales
+          /^\d{4,6}\s/,              // codigos postales solos al inicio
+          /T[eé]l/i,                  // telefonos
+          /^\d{3}\s\d{2}/,           // "961 23..." telefonos
+          /@/,                        // emails
+          /^www\./i,                  // URLs
+          /^\d+[.,]\d{2}\s*EUR/,     // precios
+        ];
         for (const line of lines) {
-          // Limpiar prefijos tipo "N       " (número de parada + espacios)
           const cleaned = line.trim().replace(/^\d+\s{2,}/, '');
+          // Saltar lineas que claramente no son direcciones
+          if (skipPatterns.some(p => p.test(cleaned))) continue;
           const addr = cleanAddress(cleaned);
-          if (addr && addr.length > 5) addresses.push(addr);
+          // Solo aceptar si contiene un indicador de via publica (Calle, C/, Avenida, etc.)
+          const hasStreet = /\b(Calle|C\/|Avenida|Av\.?|Avda\.?|Carrer|Ronda|Paseo|Plaza|Ctra\.?|Camino|Pol[ií]gono|Calleja|Traves[ií]a|Glorieta|Pasaje|Urbanizaci[oó]n)\b/i.test(addr);
+          if (addr && addr.length > 10 && hasStreet) addresses.push(addr);
+        }
+        // Si no se encontro ninguna con calle, usar result.address como fallback
+        if (addresses.length === 0 && result.address && result.address.length > 5) {
+          addresses.push(result.address);
         }
       }
       try { fs.unlinkSync(tmpPath); } catch (e) {}
       if (addresses.length > 0) {
-        res.json({ success: true, addresses, detectedAddress: addresses[0], totalAddresses: addresses.length });
+        res.json({ success: true, addresses, items, detectedAddress: addresses[0], totalAddresses: addresses.length, totalItems: items.length });
       } else {
         res.json({ success: false, error: 'No se detectó dirección en el archivo' });
       }
@@ -225,18 +274,21 @@ export default function apiRouter(db) {
     } catch (error) { res.status(500).json({ error: error.message }); }
   });
 
-  // Bulk stops
+  // Bulk stops (V2: acepta items/bultos precargados desde OCR)
   router.post('/stops/bulk', requireAuth(['driver', 'office']), async (req, res) => {
     try {
-      const { addresses, driver_id } = req.body;
+      const { addresses, items, driver_id } = req.body;
       if (!addresses || !Array.isArray(addresses) || addresses.length === 0) {
         return res.status(400).json({ error: 'Array de direcciones requerido' });
       }
       const created = [];
       let stopNumber = Date.now();
-      for (const addr of addresses) {
-        const id = await q.addStop(db, stopNumber++, addr, 'pending', driver_id ? Number(driver_id) : null);
-        created.push({ id, stop_number: stopNumber - 1, address: addr });
+      const itemsJson = items && items.length > 0 ? JSON.stringify(items) : '';
+      for (let i = 0; i < addresses.length; i++) {
+        const addr = addresses[i];
+        const stopItems = i === 0 ? itemsJson : '';
+        const id = await q.addStop(db, stopNumber++, addr, 'pending', driver_id ? Number(driver_id) : null, stopItems);
+        created.push({ id, stop_number: stopNumber - 1, address: addr, items: stopItems ? items.length : 0 });
       }
       res.json({ success: true, created, total: created.length });
     } catch (error) { res.status(500).json({ error: error.message }); }
@@ -296,42 +348,66 @@ export default function apiRouter(db) {
     } catch (error) { res.status(500).json({ error: 'Error optimizando ruta: ' + error.message }); }
   });
 
-  // Update stop
+  // Update stop (V2: acepta items, delivery_notes y entrega con firma)
   router.patch('/stops/:id', requireAuth(['driver']), async (req, res) => {
     try {
       const { id } = req.params;
-      const { status, signature, address, receiverName } = req.body;
+      const { status, signature, address, receiverName, items, delivery_notes } = req.body;
+
+      // Entrega con firma → actualizar todo + generar POD
+      if (status === 'delivered' && signature) {
+        const updates = { status: 'delivered', signature, receiver_name: receiverName || null };
+        if (items !== undefined) updates.items = typeof items === 'string' ? items : JSON.stringify(items);
+        if (delivery_notes !== undefined) updates.delivery_notes = delivery_notes;
+        await q.updateStop(db, Number(id), updates);
+
+        const allStops = await q.listStops(db);
+        const stopData = allStops.find((s) => String(s.id) === String(id));
+        if (stopData) {
+          stopData.receiver_name = receiverName || 'No especificado';
+          try {
+            const podPath = await generatePOD(stopData, signature);
+            const podUrl = `/pods/${path.basename(podPath)}`;
+            await q.savePod(db, Number(id), podUrl);
+            res.json({ success: true, pod_url: absoluteUrl(req, podUrl) });
+            return;
+          } catch (podErr) { console.error('Error generando POD:', podErr); }
+        }
+        res.json({ success: true });
+        return;
+      }
+
+      // Cambio de direccion
       if (address) {
         await q.updateStop(db, Number(id), { address });
-      } else {
-        await q.updateStop(db, Number(id), { status: status || 'pending', signature: signature || null, receiver_name: receiverName || null });
-        if (status === 'delivered' && signature) {
-          const allStops = await q.listStops(db);
-          const stopData = allStops.find((s) => String(s.id) === String(id));
-          if (stopData) {
-            stopData.receiver_name = receiverName || 'No especificado';
-            try {
-              const podPath = await generatePOD(stopData, signature);
-              const podUrl = `/pods/${path.basename(podPath)}`;
-              await q.savePod(db, Number(id), podUrl);
-              res.json({ success: true, pod_url: absoluteUrl(req, podUrl) });
-              return;
-            } catch (podErr) { console.error('Error generando POD:', podErr); }
-          }
-        }
+        res.json({ success: true });
+        return;
       }
+
+      // Actualizacion de items o delivery_notes (sin entrega)
+      if (items !== undefined || delivery_notes !== undefined) {
+        const updates = {};
+        if (items !== undefined) updates.items = typeof items === 'string' ? items : JSON.stringify(items);
+        if (delivery_notes !== undefined) updates.delivery_notes = delivery_notes;
+        await q.updateStop(db, Number(id), updates);
+        res.json({ success: true });
+        return;
+      }
+
+      // Fallback generico
+      await q.updateStop(db, Number(id), { status: status || 'pending', signature: signature || null, receiver_name: receiverName || null });
       res.json({ success: true });
     } catch (error) { res.status(500).json({ error: error.message }); }
   });
 
-  // Delete stop
-  router.delete('/stops/:id', requireAuth(['driver']), async (req, res) => {
+  // DELETE stop (driver y office pueden borrar)
+  router.delete('/stops/:id', requireAuth(['driver', 'office']), async (req, res) => {
     try { await q.deleteStop(db, Number(req.params.id)); res.json({ success: true }); }
     catch (error) { res.status(500).json({ error: error.message }); }
   });
 
-  // Clear all stops
-  router.delete('/stops', requireAuth(['driver']), async (req, res) => {
+  // Clear all stops (driver y office pueden)
+  router.delete('/stops', requireAuth(['driver', 'office']), async (req, res) => {
     try { await q.clearStops(db); res.json({ success: true }); }
     catch (error) { res.status(500).json({ error: error.message }); }
   });

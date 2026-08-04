@@ -11,6 +11,7 @@ const Scanner = ({ onScanComplete, onClose }) => {
   const [isScanning, setIsScanning] = useState(false);
   const [scanStatus, setScanStatus] = useState('select'); // select, scanning, success, error
   const [detectedData, setDetectedData] = useState(null);
+  const [errorMsg, setErrorMsg] = useState('');
   const [cameraReady, setCameraReady] = useState(false);
   
   const videoRef = useRef(null);
@@ -54,6 +55,7 @@ const Scanner = ({ onScanComplete, onClose }) => {
     
     setIsScanning(true);
     setScanStatus('scanning');
+    setErrorMsg('');
 
     try {
       const formData = new FormData();
@@ -70,10 +72,15 @@ const Scanner = ({ onScanComplete, onClose }) => {
         formData.append('type', 'csv');
       }
 
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 90000);
+
       const response = await fetch(`${API_BASE}/ocr`, {
         method: 'POST',
         body: formData,
+        signal: controller.signal,
       });
+      clearTimeout(timeout);
 
       const data = await response.json();
 
@@ -82,10 +89,16 @@ const Scanner = ({ onScanComplete, onClose }) => {
         setScanStatus('success');
         // Ya no auto-importamos — el usuario pulsa el botón IMPORTAR
       } else {
+        setErrorMsg(data.error || 'No se pudieron leer las direcciones');
         setScanStatus('error');
       }
     } catch (err) {
       console.error("Error procesando archivo:", err);
+      if (err.name === 'AbortError') {
+        setErrorMsg('El servidor tardó demasiado. Si es una foto, prueba con el PDF del albarán.');
+      } else {
+        setErrorMsg('Error de conexión. Verifica tu conexión a internet.');
+      }
       setScanStatus('error');
     } finally {
       setIsScanning(false);
@@ -275,7 +288,10 @@ const Scanner = ({ onScanComplete, onClose }) => {
             <div className="text-center p-6">
               <AlertTriangle className="w-12 h-12 text-red-500 mb-2 mx-auto" />
               <p className="text-sm text-white font-bold">No se pudo procesar</p>
-              <p className="text-xs text-slate-400 mt-2">Intenta con otro archivo</p>
+              <p className="text-xs text-slate-400 mt-2">{errorMsg}</p>
+              <button onClick={() => setScanStatus('select')} className="mt-4 text-xs font-bold text-amber-400 underline">
+                Intentar con otro archivo
+              </button>
             </div>
           )}
         </div>

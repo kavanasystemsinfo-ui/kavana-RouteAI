@@ -20,6 +20,7 @@ import Scanner from './components/Scanner';
 import SignaturePad from './components/SignaturePad';
 import { downloadPod, generatePodBlob } from './services/podService';
 import IncidentModal from './components/IncidentModal';
+import ItemsModal from './components/ItemsModal';
 
 // Prefijo del header de autenticacion (Bearer) construido por partes para evitar literales.
 const AUTH_PREF = 'Bea'.concat('rer ');
@@ -163,6 +164,7 @@ function App() {
   const [showScanner, setShowScanner] = useState(false);
   const [showSignature, setShowSignature] = useState(false);
   const [showIncident, setShowIncident] = useState(false);
+  const [showItems, setShowItems] = useState(false);
   const [podUrl, setPodUrl] = useState(null);
   const [stops, setStops] = useState([]);
   const [driverId, setDriverId] = useState(() => localStorage.getItem('routeai_driver_id') || null);
@@ -347,7 +349,8 @@ function App() {
           status: 'delivered', 
           signature: deliveryData.signature,
           receiverName: deliveryData.receiverName,
-          driver_id: driverId ? Number(driverId) : null
+          driver_id: driverId ? Number(driverId) : null,
+          items: activeStop?.items || ''
         })
       });
       setShowSignature(false);
@@ -377,9 +380,22 @@ function App() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(incidentData)
       });
-      setShowIncident(false);
       fetchStops();
     } catch (error) { console.error(error); }
+    setShowIncident(false);
+  };
+
+  const handleSaveItems = async (items) => {
+    if (!activeStop?.id) return;
+    try {
+      await driverAuthFetch(`${API_BASE}/stops/${activeStop.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ items: JSON.stringify(items) })
+      });
+      fetchStops();
+    } catch (e) { console.error(e); }
+    setShowItems(false);
   };
 
   const handleNavigate = () => {
@@ -485,8 +501,8 @@ function App() {
           </div>
           <h2 style={{color: '#fff', fontSize: 13, fontWeight: 900, letterSpacing: '1px', marginBottom: 8}}>KM INICIALES DE JORNADA</h2>
           <p style={{color: '#666', fontSize: 12, marginBottom: 20, textAlign: 'center'}}>Introduce los kilómetros actuales de tu vehículo antes de empezar.</p>
-          <form onSubmit={(e) => { e.preventDefault(); confirmKmInitial(e.target.km.value); }} style={{display: 'flex', flexDirection: 'column', gap: 12, width: '100%', maxWidth: 280}}>
-            <input name="km" type="number" step="0.1" inputMode="decimal" autoFocus placeholder="0.0 km" min="0" style={{padding: 18, backgroundColor: '#111', border: '1px solid #222', borderRadius: 12, color: '#fff', fontSize: 24, textAlign: 'center', fontWeight: 900, outline: 'none'}} />
+          <form onSubmit={(e) => { e.preventDefault(); const raw = e.target.km.value.replace(',', '.'); const km = parseFloat(raw); if (isNaN(km) || km < 0) { alert('Introduce un número válido de kilómetros'); return; } confirmKmInitial(String(km)); }} style={{display: 'flex', flexDirection: 'column', gap: 12, width: '100%', maxWidth: 280}}>
+            <input name="km" type="text" inputMode="decimal" autoFocus placeholder="0.0 km" style={{padding: 18, backgroundColor: '#111', border: '1px solid #222', borderRadius: 12, color: '#fff', fontSize: 24, textAlign: 'center', fontWeight: 900, outline: 'none'}} />
             <button type="submit" style={{padding: 18, backgroundColor: '#f8cd00', color: '#000', border: 'none', borderRadius: 12, fontWeight: 900, fontSize: 14, cursor: 'pointer'}}>INICIAR JORNADA</button>
           </form>
         </div>
@@ -521,8 +537,8 @@ function App() {
                 <span style={{color: '#666', fontSize: 11}}>Km inicial: </span>
                 <span style={{color: '#fff', fontWeight: 900, fontSize: 16}}>{sessionKmInitial} km</span>
               </div>
-              <form onSubmit={(e) => { e.preventDefault(); const v = e.target.km.value; if (parseFloat(v) <= parseFloat(sessionKmInitial)) { alert('Los km finales deben ser mayores que los iniciales'); return; } confirmKmFinal(v); }} style={{display: 'flex', flexDirection: 'column', gap: 12, width: '100%', maxWidth: 280}}>
-                <input name="km" type="number" step="0.1" inputMode="decimal" autoFocus placeholder="0.0 km" min={parseFloat(sessionKmInitial) + 0.1} style={{padding: 18, backgroundColor: '#111', border: '1px solid #222', borderRadius: 12, color: '#fff', fontSize: 24, textAlign: 'center', fontWeight: 900, outline: 'none'}} />
+              <form onSubmit={(e) => { e.preventDefault(); const raw = e.target.km.value.replace(',', '.'); const v = parseFloat(raw); if (isNaN(v)) { alert('Introduce un número válido'); return; } if (v <= parseFloat(sessionKmInitial)) { alert('Los km finales deben ser mayores que los iniciales'); return; } confirmKmFinal(String(v)); }} style={{display: 'flex', flexDirection: 'column', gap: 12, width: '100%', maxWidth: 280}}>
+                <input name="km" type="text" inputMode="decimal" autoFocus placeholder="0.0 km" style={{padding: 18, backgroundColor: '#111', border: '1px solid #222', borderRadius: 12, color: '#fff', fontSize: 24, textAlign: 'center', fontWeight: 900, outline: 'none'}} />
                 <button type="submit" style={{padding: 18, backgroundColor: '#f8cd00', color: '#000', border: 'none', borderRadius: 12, fontWeight: 900, fontSize: 14, cursor: 'pointer'}}>CERRAR JORNADA</button>
               </form>
             </>
@@ -599,15 +615,29 @@ function App() {
             </div>
 
             <div style={styles.checklist}>
-               {stops.length > 0 && (
-                 <>
-                   <div style={styles.stopLabel}>CHECKLIST DE ENTREGA</div>
-                   <div style={{...styles.checkItem, opacity: 0.3}}>
-                      <div style={{width: '24px', height: '24px', border: '2px solid #444', borderRadius: '4px'}} />
-                      <div style={{fontSize: '12px', fontWeight: '800', color: '#666'}}>Confirmar bultos al entregar</div>
-                   </div>
-                 </>
-               )}
+              {stops.length > 0 && (
+                <>
+                  <div style={styles.stopLabel}>CHECKLIST DE ENTREGA</div>
+                  {(() => {
+                    try { const items = JSON.parse(activeStop?.items || '[]'); return items.length; } catch { return 0; }
+                  })() > 0 ? (
+                    <div style={{padding: '10px 0'}}>
+                      <div style={{fontSize: '12px', fontWeight: '800', color: '#22c55e'}}>
+                        {(() => {
+                          try { const items = JSON.parse(activeStop.items || '[]'); return `${items.filter(i => i.checked).length}/${items.length} bultos confirmados`; } catch { return ''; }
+                        })()}
+                      </div>
+                    </div>
+                  ) : (
+                    <div style={{padding: '10px 0'}}>
+                      <div style={{fontSize: '12px', fontWeight: '800', color: '#666'}}>Sin bultos precargados</div>
+                    </div>
+                  )}
+                  <button onClick={() => setShowItems(true)} style={{marginTop: 8, padding: '10px', backgroundColor: '#111', border: '1px solid #333', borderRadius: 10, color: '#f8cd00', fontWeight: 700, fontSize: 12, cursor: 'pointer', width: '100%'}}>
+                    {(() => { try { return JSON.parse(activeStop?.items || '[]').length > 0; } catch { return false; } })() ? 'VERIFICAR BULTOS' : 'AÑADIR BULTOS'}
+                  </button>
+                </>
+              )}
                <div style={{display: 'flex', gap: '10px', marginTop: '30px'}}>
                  <button style={{...styles.btnPrimary, marginTop: 0, backgroundColor: '#ff4444'}} onClick={() => setShowIncident(true)}>
                     INCIDENCIA
@@ -760,6 +790,7 @@ function App() {
         {showScanner && <Scanner onScanComplete={handleScanComplete} onClose={() => setShowScanner(false)} />}
         {showSignature && <SignaturePad onSave={handleDeliver} onClose={() => setShowSignature(false)} />}
         {showIncident && <IncidentModal stop={activeStop} onSubmit={handleIncidentSubmit} onClose={() => setShowIncident(false)} />}
+        {showItems && <ItemsModal stop={activeStop} initialItems={activeStop?.items} onSave={handleSaveItems} onClose={() => setShowItems(false)} />}
       </AnimatePresence>
     </div>
   );

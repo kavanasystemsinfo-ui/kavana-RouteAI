@@ -29,10 +29,23 @@ export async function generatePOD(stop, signature, geo = null) {
   doc.fontSize(20).text('KAVANA Route AI', { align: 'center' });
   doc.fontSize(12).text('Proof of Delivery (POD)', { align: 'center' });
   doc.moveDown();
-  doc.fontSize(11).text(`Parada #${stop.id}`);
-  doc.text(`Dirección: ${stop.address || 'N/A'}`);
+  doc.text(`Parada #${stop.id}`);
+  doc.text(`Direccion: ${stop.address || 'N/A'}`);
   doc.text(`Receptor: ${stop.receiver_name || 'No especificado'}`);
   doc.text(`Fecha: ${new Date().toLocaleString('es-ES')}`);
+
+  // Items entregados (bultos)
+  let items = [];
+  try { items = JSON.parse(stop.items || '[]'); } catch {}
+  const delivered = items.filter(i => i.checked);
+  if (delivered.length > 0) {
+    doc.moveDown(0.5);
+    doc.text('Bultos entregados:');
+    for (const item of delivered) {
+      doc.text(`  ${item.qty}x ${item.name}`);
+    }
+  }
+
   if (geo && geo.lat && geo.lng) {
     doc.text(`Geolocalización: ${geo.lat.toFixed(5)}, ${geo.lng.toFixed(5)}`);
   }
