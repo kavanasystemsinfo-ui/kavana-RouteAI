@@ -1,0 +1,19 @@
+{
+  "name": "kavana-routefleet-server",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "KAVANA RouteFleet — backend de logística de campo (API REST, SQLite, OCR, IA de rutas, POD)",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "node --watch src/index.js",
+    "test": "node --test"
+  },
+  "dependencies": {
+    "express": "^4.19.2",
+    "multer": "^1.4.5-lts.1",
+    "pdfkit": "^0.15.0",
+    "better-sqlite3": "^11.3.0"
+  }
+}
