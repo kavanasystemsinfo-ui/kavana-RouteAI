@@ -12,9 +12,9 @@ import { fileURLToPath } from 'url';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(__dirname, '../../..');
 
-// Modelos OpenRouter: gratis para la mayoría, mejor para preguntas complejas.
-const MODELO_FREE = process.env.ASSISTANT_MODEL_FREE || 'openai/gpt-oss-20b:free';
-const MODELO_PRO = process.env.ASSISTANT_MODEL_PRO || 'deepseek/deepseek-chat';
+// Modelos OpenRouter: gratuito como principal, mismo para preguntas complejas.
+const MODELO_FREE = process.env.ASSISTANT_MODEL_FREE || 'poolside/laguna-s-2.1:free';
+const MODELO_PRO = process.env.ASSISTANT_MODEL_PRO || 'poolside/laguna-s-2.1:free';
 
 // ---------------------------------------------------------------- indexado
 
