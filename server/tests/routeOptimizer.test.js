@@ -106,7 +106,7 @@ test('optimizeRoute: mejora ruta con cruce evidente (triángulo)', () => {
   assert.ok(totalDist(result, ORIGIN) <= totalDist(greedy, ORIGIN) + 0.0001, 'optimizeRoute no empeora el greedy en triángulo');
 });
 
-test('optimizeRoute: no se queda en un mínimo local malo (20 repeticiones aleatorias)', () => {
+test('optimizeRoute: consistencia en 20 ejecuciones aleatorias (longitud y unicidad)', () => {
   for (let i = 0; i < 20; i++) {
     const stops = randomStops(8);
     const key = stops.map((s) => `${s.lat.toFixed(4)},${s.lng.toFixed(4)}`).join(';');

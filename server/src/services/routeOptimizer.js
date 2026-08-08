@@ -64,7 +64,7 @@ function twoOpt(route, origin) {
     improved = false;
     const currentDist = totalDistance(best, origin);
 
-    for (let i = 1; i < best.length - 1; i++) {
+    for (let i = 0; i < best.length - 1; i++) {
       for (let j = i + 1; j < best.length; j++) {
         // Invertir el segmento entre i y j
         const swapped = [
