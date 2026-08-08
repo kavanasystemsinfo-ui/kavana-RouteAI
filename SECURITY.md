@@ -7,4 +7,5 @@
 - **OCR:** Tesseract.js + pdftotext en el servidor (con fallback local); archivos subidos con límite de 10MB (`multer.limits.fileSize`)
 - **API:** CORS configurado, HTTPS forzado (Render + GitHub Pages)
 - **Sin secrets** en el repositorio (las claves viven en variables de entorno)
-- **Limitaciones conocidas del MVP:** PINs sin hash, sin rate limiting de login, JWT en localStorage; documentado como simplificación deliberada del MVP
+- **Rate limiting**: logins de oficina y repartidor protegidos con límite de 10 intentos/min en producción (50 en dev)
+- **Limitaciones honestas del MVP:** los PINs se almacenan sin hash en la BD (prioridad: simplicidad en la demo); los JWT se almacenan en localStorage en el frontend (SPA cross-origin, sin BFF); documentado como simplificaciones deliberadas para la fase actual del producto

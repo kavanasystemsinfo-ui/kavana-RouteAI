@@ -262,3 +262,17 @@ Selector de periodo arriba de la Torre de Control (Mes actual por defecto, Mes a
 | Hosting frontend | GitHub Pages |
 | Hosting backend | Render |
 | CI/CD | GitHub Actions |
+
+---
+
+## Estado actual del proyecto (agosto 2026)
+
+**Tests**: 63 (backend con node:test). **Endpoints**: 26. **ADRs**: 7.
+
+**Refactor completado (P1-P7):**
+- Seguridad: autorización por ownership JWT, rate limiting de login, endpoints protegidos
+- API: modularizada en 6 módulos de ruta (auth, drivers, stops, ocr, optimization, admin)
+- Frontend: hooks useAuth y useData extraídos (App.jsx con migración planificada)
+- 2-opt: tests con invariantes, benchmark y determinismo
+
+**Limitaciones documentadas**: PINs sin hash (prioridad MVP), JWT en localStorage (SPA cross-origin sin BFF).

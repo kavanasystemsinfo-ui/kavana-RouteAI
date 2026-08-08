@@ -1,13 +1,31 @@
-// Auth endpoints — RouteAI (P3: extraído de api.js)
+// Auth endpoints — RouteAI (P3: extraído de api.js, P7a: rate limiting)
 import express from 'express';
 import { signToken, requireAuth } from '../auth.js';
+
+const loginLimits = new Map(); // ip → {count, resetAt}
+
+export function resetLoginLimits() { loginLimits.clear(); }
+
+function checkRateLimit(req, res, next) {
+  const ip = req.headers['x-forwarded-for']?.split(',')[0]?.trim() || req.socket?.remoteAddress || 'unknown';
+  const now = Date.now();
+  const limit = loginLimits.get(ip);
+  if (!limit || limit.resetAt < now) {
+    loginLimits.set(ip, { count: 1, resetAt: now + 60 * 1000 });
+    return next();
+  }
+  const maxAttempts = process.env.NODE_ENV === 'production' ? 10 : 50;
+  if (limit.count >= maxAttempts) return res.status(429).json({ error: 'Demasiados intentos. Espera un minuto.' });
+  limit.count++;
+  return next();
+}
 
 export default function authRouter(db) {
   const q = db.queries;
   const router = express.Router();
 
-  // Driver login
-  router.post('/drivers/login', async (req, res) => {
+  // Driver login (con rate limiting)
+  router.post('/drivers/login', checkRateLimit, async (req, res) => {
     try {
       const { pin } = req.body;
       const drivers = await q.listDrivers(db);
@@ -19,8 +37,8 @@ export default function authRouter(db) {
     } catch (error) { res.status(500).json({ error: error.message }); }
   });
 
-  // Office login
-  router.post('/office/login', (req, res) => {
+  // Office login (con rate limiting)
+  router.post('/office/login', checkRateLimit, (req, res) => {
     try {
       const { pin } = req.body;
       const officePin = process.env.OFFICE_PIN || '0000';
