@@ -55,7 +55,7 @@ test('CRUD de paradas + POD: crear, entregar y consultar POD', async () => {
     const data = await deliver.json();
     // Deberia devolver pod_url
     if (data.pod_url) {
-      const podRes = await fetch(data.pod_url);
+      const podRes = await fetch(data.pod_url, { headers: authH(dtok) });
       assert.equal(podRes.status, 200);
       const podBuf = await podRes.arrayBuffer();
       assert.ok(podBuf.byteLength > 200, 'PDF debe tener contenido');

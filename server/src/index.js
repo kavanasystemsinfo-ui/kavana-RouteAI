@@ -2,6 +2,7 @@
 import express from 'express';
 import { initDb } from './db.js';
 import apiRouter from './routes/api.js';
+import { extractToken, verifyToken } from './auth.js';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import fs from 'fs';
@@ -35,9 +36,19 @@ export function createServer(db) {
   app.get('/health', (req, res) => res.json({ status: 'ok' }));
   app.use('/api', apiRouter(db));
   if (!fs.existsSync(PODS_DIR)) fs.mkdirSync(PODS_DIR, { recursive: true });
-  app.use('/pods', express.static(PODS_DIR));
+  // /pods y /incidents requieren JWT (no se sirven públicamente).
+  const requirePodJwt = (req, res, next) => {
+    if (req.query.token && String(req.query.token).length < 8) {
+      // Si query tiene algo corto (no un JWT), intentar con header también.
+    }
+    const token = extractToken(req);
+    if (!token) return res.status(401).json({ error: 'No autenticado' });
+    try { verifyToken(token); next(); }
+    catch (e) { res.status(401).json({ error: e.message }); }
+  };
+  app.use('/pods', requirePodJwt, express.static(PODS_DIR));
   if (!fs.existsSync(INCIDENTS_DIR)) fs.mkdirSync(INCIDENTS_DIR, { recursive: true });
-  app.use('/incidents', express.static(INCIDENTS_DIR));
+  app.use('/incidents', requirePodJwt, express.static(INCIDENTS_DIR));
   return app;
 }
 

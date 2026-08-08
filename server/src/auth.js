@@ -76,3 +76,46 @@ export function requireAuth(roles = []) {
     }
   };
 }
+
+// Middleware: driver autenticado (más específico que requireAuth(['driver'])).
+export function requireDriver() {
+  return (req, res, next) => {
+    const token = extractToken(req);
+    if (!token) return res.status(401).json({ error: 'No autenticado' });
+    try {
+      const payload = verifyToken(token);
+      if (payload.role !== 'driver') return res.status(403).json({ error: 'Solo repartidores' });
+      req.user = payload;
+      next();
+    } catch (e) {
+      res.status(401).json({ error: e.message });
+    }
+  };
+}
+
+// Middleware: el driver autenticado solo puede operar sobre stops suyos.
+// El stop_id debe venir en req.params.id (ruta /stops/:id/...).
+export function requireDriverOwnsStop(db) {
+  return async (req, res, next) => {
+    if (req.user.role === 'office') return next();
+    const stopId = req.params.id;
+    if (!stopId) {
+      const driverIdFromBody = req.body?.driver_id;
+      if (driverIdFromBody !== undefined && req.user.driverId !== driverIdFromBody) {
+        return res.status(403).json({ error: 'El driver_id del body no coincide con el JWT' });
+      }
+      return next();
+    }
+    try {
+      const stops = await db.queries.listStops(db);
+      const stop = stops.find((s) => String(s.id) === String(stopId));
+      if (!stop) return res.status(404).json({ error: 'Stop no encontrado' });
+      if (stop.driver_id !== req.user.driverId) {
+        return res.status(403).json({ error: 'Ese stop no pertenece a ese repartidor' });
+      }
+      next();
+    } catch (e) {
+      res.status(500).json({ error: e.message });
+    }
+  };
+}

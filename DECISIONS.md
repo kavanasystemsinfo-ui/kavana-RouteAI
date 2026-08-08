@@ -12,11 +12,11 @@ Actualizado: Julio 2026.
 **ADR:** [`docs/adr/001-reemplazo-ia-por-2opt.md`](./docs/adr/001-reemplazo-ia-por-2opt.md)
 
 ### Decisión
-Se eliminó la dependencia de OpenRouter (IA) para la optimización de rutas. Se reemplazó por un algoritmo **2-opt** local.
+Se reemplazó la dependencia de OpenRouter (IA) para la optimización de rutas y se implementó un algoritmo **2-opt** (búsqueda local) desde cero.
 
 ### Por qué
-- **El problema del viajante (TSP)** es un problema geométrico clásico. Los algoritmos deterministas (2-opt, vecino más cercano) lo resuelven igual o mejor que una IA genérica, sin coste y sin latencia.
-- La IA (Nemotron, GPT, Claude) no está entrenada específicamente para optimización logística. En nuestras pruebas, el modelo gratuito `nemotron-3-super-120b` producía rutas aceptables pero no óptimas, y `nemotron-nano-12b` devolvía el orden original sin optimizar.
+- **El problema del viajante (TSP)** es un problema geométrico clásico. Los algoritmos deterministas (2-opt, vecino más cercano) lo resuelven con precisión reproducible, sin coste y sin latencia de red.
+- La IA (Nemotron, GPT, Claude) no está entrenada específicamente para optimización logística. En pruebas, `nemotron-3-super-120b` producía rutas aceptables pero no óptimas, y `nemotron-nano-12b` devolvía el orden original sin optimizar.
 - **Coste**: 0€ vs 0,10-0,50€ por llamada a IA.
 - **Latencia**: milisegundos vs 20-30 segundos.
 - **Disponibilidad**: funciona sin conexión, sin depender de terceros.
