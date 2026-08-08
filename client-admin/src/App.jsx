@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
-import { useAuth, authFetch, AUTH_PREF, getSessionId } from './hooks/useAuth.js';
-import { useData } from './hooks/useData.js';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
+// Hooks extraídos en ./hooks/useAuth.js y ./hooks/useData.js — listos para migrar cuando el CI incluya client-admin build.
+// Migración planificada: sustituir estados inline de auth/datos por useAuth() y useData(). Ver DECISIONS.md.
 
 const API_BASE = (import.meta.env.VITE_API_BASE)
   ? `${import.meta.env.VITE_API_BASE.replace(/\/$/, '')}/api`
@@ -62,19 +62,23 @@ function getSessionId() {
 }
 
 export default function App() {
-  const { logged, pin, setPin, login, logout } = useAuth();
-  const {
-    drivers, stops, incidents, settings, sessions, loading, refresh,
-    setDrivers, setStops, setIncidents, setSessions, setSettings
-  } = useData({ logged, from, to, rangeMode });
-
+  const [logged, setLogged] = useState(false);
+  const [pin, setPin] = useState('');
+  const [token, setToken] = useState(() => sessionStorage.getItem('rf_office_token') || '');
   const [section, setSection] = useState('dashboard');
   const [contactoOpen, setContactoOpen] = useState(false);
+  const [drivers, setDrivers] = useState([]);
+  const [stops, setStops] = useState([]);
+  const [incidents, setIncidents] = useState([]);
+  const [settings, setSettings] = useState({ cost_per_km: 0.3, cost_per_hour: 15, cost_per_km_diesel: 0.30, cost_per_km_gasolina: 0.35, cost_per_km_electrico: 0.15, cost_per_km_hibrido: 0.28 });
   const [filterDriver, setFilterDriver] = useState('');
   const [filterStatus, setFilterStatus] = useState('');
   const [from, setFrom] = useState('');
   const [to, setTo] = useState('');
-  const [rangeMode, setRangeMode] = useState('mes_actual');
+  const [rangeMode, setRangeMode] = useState('mes_actual'); // mes_actual | mes_anterior | semana | todo | custom
+  const [loading, setLoading] = useState(false);
+  const [sessions, setSessions] = useState([]);
+  // Settings editables
   const [editCostKm, setEditCostKm] = useState('');
   const [editCostHour, setEditCostHour] = useState('');
 
