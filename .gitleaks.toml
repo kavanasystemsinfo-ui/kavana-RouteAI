@@ -1,0 +1,11 @@
+# Gitleaks config — KAVANA Route AI
+# El JWT_SECRET histórico (c672f068...) se rotó el 2026-08-17 y ya no es válido;
+# se permite en el scan para no bloquear el CI por un valor comprometido cuyo
+# reemplazo vive en un secret de Render. El fallback de desarrollo es público
+# por diseño (solo válido fuera de producción, donde el arranque falla).
+[allowlist]
+  description = "Valores rotados o de desarrollo documentados"
+  regexes = [
+    '''c672f0687a0cd7915f0e958e4f0219a735512af10d5a925a5c5c394e2ae8eab4''',
+    '''routeai-dev-secret-change-me''',
+  ]

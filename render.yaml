@@ -29,9 +29,9 @@ services:
       - key: PGSSLMODE
         value: require
       - key: JWT_SECRET
-        value: "c672f0687a0cd7915f0e958e4f0219a735512af10d5a925a5c5c394e2ae8eab4"  # fija: los deploys ya no invalidan sesiones (antes generateValue)
+        sync: false  # Secret de Render — configurar manualmente (rotado 2026-08-17)
       - key: OFFICE_PIN
-        value: "0000"  # CAMBIAR en producción
+        sync: false  # Secret de Render — configurar manualmente (nunca el valor por defecto)
       - key: CORS_ORIGINS
         value: "https://kavanasystemsinfo-ui.github.io,https://routeai.kavanasystems.com,https://www.routeai.kavanasystems.com"
       - key: SMTP_HOST
