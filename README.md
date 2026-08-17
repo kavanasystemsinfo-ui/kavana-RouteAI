@@ -7,7 +7,7 @@
 ![Express](https://img.shields.io/badge/Express-API-lightgrey)
 ![Web](https://img.shields.io/badge/Web-Responsive-blue)
 ![OCR](https://img.shields.io/badge/OCR-Tesseract-8A2BE2)
-![Tests](https://img.shields.io/badge/Tests-48-success)
+![Tests](https://img.shields.io/badge/Tests-75-success)
 ![License](https://img.shields.io/badge/License-MIT-success)
 
 ---
@@ -73,7 +73,7 @@ La optimización de rutas usa un **algoritmo 2-opt local**: determinista, instan
 | Entrada de km con coma/punto (3 decimales) | ✅ |
 | Historial de entregas | ✅ |
 | API REST + RBAC (office/driver) | ✅ |
-| 63 tests (backend node:test) | ✅ |
+| 75 tests (72 server + 3 client) | ✅ |
 | CI/CD (GitHub Actions) | ✅ |
 | Replanificación dinámica con IA | 🚧 |
 | Analítica avanzada | 🚧 |
@@ -97,7 +97,7 @@ La optimización de rutas usa un **algoritmo 2-opt local**: determinista, instan
 # Backend
 cd server
 npm install
-npm test        # 63 tests
+npm test        # 75 tests (72 server + 3 client)
 
 # App del repartidor (web)
 cd client

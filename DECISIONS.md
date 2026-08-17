@@ -85,16 +85,17 @@ Se añadió limpieza de prefijos numéricos (números de parada) en las líneas 
 
 ### Decisión
 El frontend (Torre de Control + app repartidor) se despliega con GitHub Actions a GitHub Pages.
-El backend (API Express) se despliega en Render.
+El backend (API Express) se despliega en Fly.io.
 
 ### Por qué
 - Los frontends son SPAs puras (React + Vite) → GitHub Pages es suficiente y gratuito
-- El backend necesita Node.js persistente → Render (plan gratuito)
-- Vercel no aporta ventajas sobre Pages para SPAs estáticas, y añade complejidad al dividir el proyecto en más plataformas
+- El backend necesita Node.js persistente → Fly.io (máquina 256MB con volumen persistente para PODs/fotos, auto-stop sin suspender)
+- Migrado desde Render free (suspendía el servicio al agotar horas). Vercel no aporta ventajas sobre Pages para SPAs estáticas
 
 ### Dónde está
 - `.github/workflows/deploy-combined.yml` — build + deploy automático
-- `render.yaml` — configuración de Render
+- `fly.toml` + `server/Dockerfile` — configuración de Fly.io
+- `render.yaml` — histórico (ya NO operativo)
 
 ---
 
@@ -260,14 +261,14 @@ Selector de periodo arriba de la Torre de Control (Mes actual por defecto, Mes a
 | Optimización rutas | 2-opt local (sin IA) |
 | OCR | Tesseract.js + pdftotext (poppler-utils) |
 | Hosting frontend | GitHub Pages |
-| Hosting backend | Render |
+| Hosting backend | Fly.io |
 | CI/CD | GitHub Actions |
 
 ---
 
 ## Estado actual del proyecto (agosto 2026)
 
-**Tests**: 63 (backend con node:test). **Endpoints**: 26. **ADRs**: 7.
+**Tests**: 75 (72 server + 3 client). **Endpoints**: 25. **ADRs**: 7.
 
 **Refactor completado (P1-P7):**
 - Seguridad: autorización por ownership JWT, rate limiting de login, endpoints protegidos

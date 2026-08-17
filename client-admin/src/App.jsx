@@ -767,9 +767,9 @@ function AssistantChat({ API_BASE }) {
   const [loading, setLoading] = useState(false);
   const boxRef = useRef(null);
 
-  const enviar = async (e) => {
-    e.preventDefault();
-    const pregunta = q.trim();
+  const enviar = async (e, prompt) => {
+    if (e?.preventDefault) e.preventDefault();
+    const pregunta = (prompt || q).trim();
     if (!pregunta || loading) return;
     setMsgs((m) => [...m, { role: 'user', text: pregunta }]);
     setQ('');
@@ -795,10 +795,12 @@ function AssistantChat({ API_BASE }) {
 
   // Sugerencias de ejemplo (una sola ejecución, una pregunta cada vez)
   const sugerencias = [
-    '¿Qué problema resuelve Route AI?',
-    '¿Cómo funciona la firma digital y el POD?',
+    '¿Qué problema resuelve Route AI y para quién?',
+    '¿Cuántos tests tiene el proyecto y qué cubren?',
+    '¿Cómo está desplegado el sistema?',
     '¿Por qué 2-opt y no IA para las rutas?',
-    '¿Cómo se calcula el OPEX real?',
+    '¿Cómo se gestiona la seguridad y los permisos?',
+    '¿Cómo funciona la firma digital del cliente (POD)?',
   ];
 
   return (
@@ -808,7 +810,7 @@ function AssistantChat({ API_BASE }) {
           <div style={{color: C.muted, fontSize: 12}}>
             <div style={{marginBottom: 10}}>Pregunta lo que quieras sobre el proyecto (arquitectura, decisiones, seguridad, tests...).</div>
             {sugerencias.map((s) => (
-              <button key={s} onClick={() => { setQ(s); }} style={{display: 'block', width: '100%', textAlign: 'left', marginBottom: 6, padding: '8px 10px', background: C.panel2, border: `1px solid ${C.border}`, borderRadius: 8, color: C.text, cursor: 'pointer', fontSize: 12}}>{s}</button>
+              <button key={s} onClick={() => enviar(undefined, s)} style={{display: 'block', width: '100%', textAlign: 'left', marginBottom: 6, padding: '8px 10px', background: C.panel2, border: `1px solid ${C.border}`, borderRadius: 8, color: C.text, cursor: 'pointer', fontSize: 12}}>{s}</button>
             ))}
           </div>
         )}
