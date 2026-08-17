@@ -17,12 +17,18 @@ jobs:
         with:
           node-version: 20
 
+      - name: Test backend (gate para no publicar si los tests fallan)
+        working-directory: server
+        run: |
+          npm ci
+          npm test
+
       - name: Build panel de oficinas (Torre de Control)
         working-directory: client-admin
         env:
           VITE_API_BASE: ${{ secrets.VITE_API_BASE }}
         run: |
-          npm install
+          npm ci
           npm run build
 
       - name: Build app del repartidor (en /app)
@@ -30,14 +36,10 @@ jobs:
         env:
           VITE_API_BASE: ${{ secrets.VITE_API_BASE }}
         run: |
-          npm install
+          npm ci
           npm run build
 
 
-      - name: Cache Bust (evitar CDN cache)
-        run: |
-          echo "window.BUILD_TIMESTAMP='1784372441';" >> client/dist/timestamp.js
-          echo "window.BUILD_TIMESTAMP='1784372441';" >> client-admin/dist/timestamp.js
       - name: Ensamblar sitio combinado en gh-pages-admin
         run: |
           rm -rf gh-pages-admin && mkdir -p gh-pages-admin/app
