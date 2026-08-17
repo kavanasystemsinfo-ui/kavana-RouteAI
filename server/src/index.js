@@ -93,12 +93,16 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
 
     const app = createServer(db);
 
-    if (process.env.OFFICE_PIN === '0000' || !process.env.OFFICE_PIN) {
+    if (!process.env.OFFICE_PIN) {
       if (process.env.NODE_ENV === 'production') {
-        console.error('OFFICE_PIN no configurado o con valor por defecto (0000): la API no arranca en producción sin un PIN real definido por entorno.');
+        console.error('OFFICE_PIN no configurado: la API no arranca en producción sin un PIN definido por entorno.');
         process.exit(1);
       }
       console.warn('⚠️  OFFICE_PIN usando valor por defecto (0000). Cambiar en producción vía variable de entorno.');
+    } else if (process.env.OFFICE_PIN === '0000') {
+      // La demo pública de portfolio usa 0000 a propósito (README/landing lo
+      // publicitan). Lo importante es que venga del entorno, no del repo.
+      console.log('ℹ️  OFFICE_PIN con el valor de demo (0000). En una instalación con datos reales, cámbialo.');
     }
     if (!process.env.JWT_SECRET || process.env.JWT_SECRET === 'routeai-dev-secret-change-me') {
       if (process.env.NODE_ENV === 'production') {
