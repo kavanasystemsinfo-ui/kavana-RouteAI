@@ -18,10 +18,13 @@ RUN apt-get update && apt-get install -y --no-install-recommends poppler-utils \
 COPY server/package.json server/package-lock.json ./
 RUN npm ci --omit=dev --no-audit --no-fund
 
-# Código de la app (src/ contiene index.js, rutas, servicios y seed.js)
-COPY server/src ./src
+# Código de la app en /app/server/src (misma estructura que el repo, necesaria
+# porque assistantService.js resuelve la raíz del repo subiendo 3 niveles:
+# server/src/services -> server/src -> server -> raíz; con solo /app/src la
+# resolución sale fuera de /app y no encuentra docs/ para el corpus RAG).
+COPY server/src ./server/src
 # Migraciones SQL versionadas (aplicadas en arranque sobre PostgreSQL)
-COPY server/migrations ./migrations
+COPY server/migrations ./server/migrations
 # Documentación del repo: el asistente técnico la indexa como corpus (RAG).
 # Sin estos archivos el asistente en producción responde "no documentado" o error.
 COPY README.md DECISIONS.md SECURITY.md ./
@@ -33,4 +36,4 @@ RUN mkdir -p /app/data/pods /app/data/incidents
 
 EXPOSE 5001
 
-CMD ["node", "src/index.js"]
+CMD ["node", "server/src/index.js"]
