@@ -136,7 +136,14 @@ RouteAI incluye una **demo de empresa ficticia** para portfolio: 90 días de his
 |---|---|---|
 | Simulación diaria | 06:00 | Cierra jornadas de ayer, abre las de hoy, genera rutas del día |
 | Limpieza expirados | 03:00 | Borra datos de visitante caducados (24h) |
-| Ping antiduerme | Cada 10 min | Mantiene la API de Fly.io despierta (auto-start) |
+
+> **Nota (2026-08-17):** ya NO hay ping antiduerme. En Render free el ping cada
+> 10 min mantenía la instancia viva y quemaba las 750h/mes del límite. En
+> Fly.io la máquina se detiene sola sin tráfico (`auto_stop_machines`) y
+> despierta al primer request (`auto_start_machines`), así que el ping era
+> innecesario y consumía horas de máquina sin aportar nada. Los crons de
+> simulación y limpieza despiertan la API un par de veces al día (consumo
+> despreciable) y mantienen los datos de la demo frescos.
 
 ---
 
