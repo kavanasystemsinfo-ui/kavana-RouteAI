@@ -1,0 +1,10 @@
+# Contexto de build: solo lo que necesita la imagen del backend.
+# El Dockerfile copia src/, migrations/, docs/ y los .md de la raíz.
+.git
+client
+client-admin
+node_modules
+**/node_modules
+*.log
+.env
+data
