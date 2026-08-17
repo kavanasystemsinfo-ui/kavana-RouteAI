@@ -2,6 +2,9 @@
 import express from 'express';
 import multer from 'multer';
 import fs from 'fs';
+import path from 'path';
+import os from 'os';
+import crypto from 'crypto';
 import { requireAuth } from '../auth.js';
 import { processManifestImage } from '../services/ocrService.js';
 import { cleanAddress } from '../services/addressCleaner.js';
@@ -19,7 +22,11 @@ export default function ocrRouter(db) {
       const fileTypeFlag = req.body.type || '';
       const isPdf = fileType === 'application/pdf' || fileTypeFlag === 'pdf';
       const isCsv = fileType === 'text/csv' || fileTypeFlag === 'csv';
-      const tmpPath = `/tmp/ocr_${Date.now()}_${req.file.originalname || 'file'}`;
+      // Fase 1 (auditoría 2026-08-17): NO usar req.file.originalname en rutas
+      // (path traversal vía nombres como ../../etc/x). Directorio temporal
+      // exclusivo + nombre aleatorio; extensión de los magic bytes del contenido.
+      const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'routeai-ocr-'));
+      const tmpPath = path.join(tmpDir, `upload-${crypto.randomBytes(8).toString('hex')}`);
       fs.writeFileSync(tmpPath, buffer);
       const result = await processManifestImage(tmpPath, isPdf, isCsv);
       let addresses = [];
@@ -55,6 +62,7 @@ export default function ocrRouter(db) {
         if (addresses.length === 0 && result.address && result.address.length > 5) addresses.push(result.address);
       }
       try { fs.unlinkSync(tmpPath); } catch (e) {}
+      try { fs.rmdirSync(tmpDir); } catch (e) {}
       if (addresses.length > 0) res.json({ success: true, addresses, items, detectedAddress: addresses[0], totalAddresses: addresses.length, totalItems: items.length });
       else res.json({ success: false, error: 'No se detectó dirección en el archivo' });
     } catch (error) {
