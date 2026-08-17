@@ -22,6 +22,10 @@ RUN npm ci --omit=dev --no-audit --no-fund
 COPY src ./src
 # Migraciones SQL versionadas (aplicadas en arranque sobre PostgreSQL)
 COPY migrations ./migrations
+# Documentación del repo: el asistente técnico la indexa como corpus (RAG).
+# Sin estos archivos el asistente en producción responde "no documentado" o error.
+COPY README.md DECISIONS.md SECURITY.md ./
+COPY docs ./docs
 
 # Directorios de artefactos (PODs y fotos de incidencias). En Fly viven en un
 # volumen persistente montado en /app/data (DATA_DIR, ver fly.toml [mounts]).
