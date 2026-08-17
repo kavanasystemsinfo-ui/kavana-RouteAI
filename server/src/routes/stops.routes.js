@@ -111,8 +111,9 @@ export default function stopsRouter(db) {
     } catch (error) { res.status(500).json({ error: error.message }); }
   });
 
-  // Clear all stops (visitante, no demo)
-  router.delete('/stops', requireAuth(['driver', 'office']), async (req, res) => {
+  // Clear all stops (visitante, no demo) — SOLO oficina: un driver no puede
+  // vaciar la ruta de la empresa (IDOR detectado en auditoría 2026-08-17).
+  router.delete('/stops', requireAuth(['office']), async (req, res) => {
     try {
       const stops = await q.listStops(db);
       const drivers = await q.listDrivers(db);
@@ -123,8 +124,9 @@ export default function stopsRouter(db) {
     } catch (error) { res.status(500).json({ error: error.message }); }
   });
 
-  // Incident report
-  router.post('/stops/:id/incident', requireAuth(['driver']), async (req, res) => {
+  // Incident report — SOLO sobre paradas propias (IDOR auditoría 2026-08-17):
+  // requireDriverOwnsStop evita que un driver marque paradas ajenas.
+  router.post('/stops/:id/incident', requireAuth(['driver']), requireDriverOwnsStop(db), async (req, res) => {
     try {
       const { id } = req.params;
       const blindado = await esStopDemo(Number(id));
@@ -149,8 +151,9 @@ export default function stopsRouter(db) {
     } catch (error) { res.status(500).json({ error: error.message }); }
   });
 
-  // POD URL
-  router.get('/stops/:id/pod', requireAuth(['office', 'driver']), async (req, res) => {
+  // POD URL — SOLO la oficina o el driver dueño de la parada (IDOR auditoría
+  // 2026-08-17): la firma del receptor es dato sensible de otro repartidor.
+  router.get('/stops/:id/pod', requireAuth(['office', 'driver']), requireDriverOwnsStop(db), async (req, res) => {
     try {
       const podsDir = path.join(__dirname, '../../pods');
       const files = fs.existsSync(podsDir) ? fs.readdirSync(podsDir).filter((f) => f.includes(`_${req.params.id}_`) && f.endsWith('.pdf')) : [];

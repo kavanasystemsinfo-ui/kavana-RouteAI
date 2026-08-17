@@ -10,7 +10,25 @@ export default function optimizationRouter(db) {
 
   router.post('/optimize', requireAuth(['driver', 'office']), async (req, res) => {
     try {
-      const { stops, origin } = req.body;
+      let { stops, origin } = req.body;
+      // IDOR auditoría 2026-08-17: un driver solo puede optimizar SUS paradas.
+      // El body del cliente manda {id, address} sin driver_id, así que la
+      // propiedad se valida contra la BD por id (nunca confiar en el body).
+      if (req.user.role === 'driver') {
+        if (!stops) {
+          stops = await q.listStops(db, { driver_id: req.user.driverId });
+        } else {
+          const ids = stops.map((s) => s.id).filter((x) => x !== undefined && x !== null);
+          const allStops = await q.listStops(db);
+          for (const id of ids) {
+            const stop = allStops.find((s) => String(s.id) === String(id));
+            if (!stop) return res.status(404).json({ error: `Parada ${id} no encontrada` });
+            if (String(stop.driver_id) !== String(req.user.driverId)) {
+              return res.status(403).json({ error: 'No puedes optimizar paradas de otros repartidores' });
+            }
+          }
+        }
+      }
       const stopsList = stops || await q.listStops(db);
       if (!stopsList || stopsList.length === 0) return res.status(400).json({ error: 'No hay paradas para optimizar' });
 
@@ -37,7 +55,11 @@ export default function optimizationRouter(db) {
 
       for (let i = 0; i < route.length; i++) await q.updateStop(db, route[i].id, { stop_number: i + 1 });
       const updated = await q.listStops(db);
-      res.json({ success: true, message: unlocated.length > 0 ? `Ruta optimizada (${unlocated.length} sin geocodificar al final)` : 'Ruta optimizada', stops: updated, unlocated: unlocated.map((s) => s.address) });
+      // Un driver solo recibe en la respuesta SUS paradas (no las de la empresa).
+      const visible = req.user.role === 'driver'
+        ? updated.filter((s) => String(s.driver_id) === String(req.user.driverId))
+        : updated;
+      res.json({ success: true, message: unlocated.length > 0 ? `Ruta optimizada (${unlocated.length} sin geocodificar al final)` : 'Ruta optimizada', stops: visible, unlocated: unlocated.map((s) => s.address) });
     } catch (error) { res.status(500).json({ error: 'Error optimizando ruta: ' + error.message }); }
   });
 
