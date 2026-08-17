@@ -24,8 +24,11 @@ repartidor envían ese JWT en `Authorization: Bearer ***`
 La app es una **web responsive** (SPA) accesible desde el navegador del móvil:
 - El repartidor abre `https://routeai.kavanasystems.com/app` en su navegador
   móvil y, si quiere, pulsa "Añadir a pantalla de inicio" (icono de acceso directo).
-- Sin Google Play, se actualiza automáticamente. Nota honesta: no hay service
-  worker, así que no funciona sin conexión (pendiente de implementar).
+- Sin Google Play, se actualiza automáticamente. **No hay service worker
+  (decisión confirmada, ADR-001)**: el repartidor trabaja siempre con conexión
+  de datos móviles (recibe la ruta y envía cada entrega en tiempo real), así
+  que el offline no aporta valor al flujo real. Los assets se cachean con los
+  hashes de Vite (el cache-bust agresivo del index.html se retiró en 2026-08-17).
 
 ## Variables
 - `VITE_API_BASE` (build-time) → `https://kavana-routeai-api.fly.dev`
