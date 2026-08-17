@@ -49,6 +49,47 @@ function authFetch(url, opts = {}) {
   });
 }
 
+// Descarga/abre un POD sin exponer el JWT en la query string (auditoría
+// 2026-08-17, P0): el token viaja en el header Authorization y el PDF se
+// convierte en blob URL efímero del navegador.
+async function downloadPod(stopId, filename = 'pod.pdf') {
+  const res = await authFetch(`${API_BASE}/stops/${stopId}/pod`);
+  if (!res.ok) throw new Error(`Error descargando POD (${res.status})`);
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 10000);
+}
+
+// Componente POD: fetchea el PDF autenticado y lo muestra en un iframe vía
+// blob URL — nunca token en la URL (el iframe no puede mandar headers).
+function PodFrame({ stopId, height }) {
+  const [src, setSrc] = useState('');
+  useEffect(() => {
+    let url = null;
+    let cancelled = false;
+    authFetch(`${API_BASE}/stops/${stopId}/pod`)
+      .then((res) => (res.ok ? res.blob() : null))
+      .then((blob) => {
+        if (cancelled || !blob) return;
+        url = URL.createObjectURL(blob);
+        setSrc(url);
+      })
+      .catch(() => {});
+    return () => { cancelled = true; if (url) URL.revokeObjectURL(url); };
+  }, [stopId]);
+  return src
+    ? <iframe title={`pod-${stopId}`} src={src} style={{width: '100%', height: height || 160, border: 'none', background: '#fff', borderRadius: 8}} />
+    : <div style={{...skeleton, height: height || 160}}>Cargando POD…</div>;
+}
+
+const skeleton = { width: '100%', background: '#6662', borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', color: C.muted, fontSize: 12 };
+
 // Etiqueta de visitante de la demo: persiste en localStorage.
 // Los repartidores y paradas que cree este visitante caducan a las 24h.
 function getSessionId() {
@@ -602,7 +643,7 @@ function StopsSection({ API_BASE, token, stops, drivers, driverName, filterDrive
                 <td style={td}>{(s.created_at || '').slice(0, 10)}</td>
                 <td style={td}>
                   {s.status === 'delivered' && (
-                    <a href={`${API_BASE}/stops/${s.id}/pod?token=${token}`} target="_blank" rel="noreferrer" style={{color: C.accent, fontWeight: 700}}>POD</a>
+                    <a href="#" onClick={(e) => { e.preventDefault(); downloadPod(s.id, `pod-${s.stop_number}.pdf`).catch(() => alert('Error descargando POD')); }} style={{color: C.accent, fontWeight: 700}}>POD</a>
                   )}
                 </td>
                 <td style={td}>
@@ -634,8 +675,8 @@ function SignaturesSection({ API_BASE, token, stops, drivers, driverName, filter
           <div key={s.id} style={{background: C.panel, border: `1px solid ${C.border}`, borderRadius: 12, padding: 14}}>
             <div style={{fontSize: 13, fontWeight: 700, marginBottom: 4}}>{s.receiver_name || 'Cliente'}</div>
             <div style={{fontSize: 11, color: C.muted, marginBottom: 8}}>{driverName(s.driver_id)} · {(s.created_at || '').slice(0, 10)}</div>
-            <iframe title={`pod-${s.id}`} src={`${API_BASE}/stops/${s.id}/pod?token=${token}`} style={{width: '100%', height: 160, border: 'none', background: '#fff', borderRadius: 8}} />
-            <a href={`${API_BASE}/stops/${s.id}/pod?token=${token}`} target="_blank" rel="noreferrer" style={{display: 'inline-block', marginTop: 8, color: C.accent, fontWeight: 700, fontSize: 12}}>Descargar PDF</a>
+            <PodFrame stopId={s.id} />
+            <a href="#" onClick={(e) => { e.preventDefault(); downloadPod(s.id, `pod-${s.stop_number}.pdf`).catch(() => alert('Error descargando POD')); }} style={{display: 'inline-block', marginTop: 8, color: C.accent, fontWeight: 700, fontSize: 12}}>Descargar PDF</a>
           </div>
         ))}
         {delivered.length === 0 && <div style={{color: C.muted}}>No hay firmas para este filtro.</div>}
