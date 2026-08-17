@@ -15,13 +15,13 @@ RUN apt-get update && apt-get install -y --no-install-recommends poppler-utils \
     && rm -rf /var/lib/apt/lists/*
 
 # Dependencias primero (cache de capas): package.json + lockfile
-COPY package.json package-lock.json ./
+COPY server/package.json server/package-lock.json ./
 RUN npm ci --omit=dev --no-audit --no-fund
 
 # Código de la app (src/ contiene index.js, rutas, servicios y seed.js)
-COPY src ./src
+COPY server/src ./src
 # Migraciones SQL versionadas (aplicadas en arranque sobre PostgreSQL)
-COPY migrations ./migrations
+COPY server/migrations ./migrations
 # Documentación del repo: el asistente técnico la indexa como corpus (RAG).
 # Sin estos archivos el asistente en producción responde "no documentado" o error.
 COPY README.md DECISIONS.md SECURITY.md ./
