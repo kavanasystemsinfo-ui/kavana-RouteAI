@@ -5,6 +5,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { requireAuth, requireDriver, requireDriverOwnsStop } from '../auth.js';
 import { generatePOD } from '../services/pdfService.js';
+import { PODS_DIR, INCIDENTS_DIR } from '../storage.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -138,7 +139,7 @@ export default function stopsRouter(db) {
         if (matches) {
           const ext = matches[1] === 'jpeg' ? 'jpg' : matches[1];
           const buffer = Buffer.from(matches[2], 'base64');
-          const incidentsDir = path.join(__dirname, '../../incidents');
+          const incidentsDir = INCIDENTS_DIR;
           if (!fs.existsSync(incidentsDir)) fs.mkdirSync(incidentsDir, { recursive: true });
           const filename = `incident_${id}_${Date.now()}.${ext}`;
           fs.writeFileSync(path.join(incidentsDir, filename), buffer);
@@ -155,7 +156,7 @@ export default function stopsRouter(db) {
   // 2026-08-17): la firma del receptor es dato sensible de otro repartidor.
   router.get('/stops/:id/pod', requireAuth(['office', 'driver']), requireDriverOwnsStop(db), async (req, res) => {
     try {
-      const podsDir = path.join(__dirname, '../../pods');
+      const podsDir = PODS_DIR;
       const files = fs.existsSync(podsDir) ? fs.readdirSync(podsDir).filter((f) => f.includes(`_${req.params.id}_`) && f.endsWith('.pdf')) : [];
       if (files.length > 0) return res.redirect(`/pods/${files[0]}`);
       const allStops = await q.listStops(db);

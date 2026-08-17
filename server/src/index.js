@@ -7,11 +7,10 @@ import path from 'path';
 import { fileURLToPath, pathToFileURL } from 'url';
 import fs from 'fs';
 import { seedDrivers } from './seed.js';
+import { PODS_DIR, INCIDENTS_DIR } from './storage.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-const PODS_DIR = path.join(process.cwd(), 'pods');
-const INCIDENTS_DIR = path.join(process.cwd(), 'incidents');
 
 const ALLOWED = (process.env.CORS_ORIGINS || 'https://kavanasystemsinfo-ui.github.io,https://routeai.kavanasystems.com,https://www.routeai.kavanasystems.com').split(',').map((s) => s.trim());
 

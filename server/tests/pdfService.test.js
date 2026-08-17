@@ -2,12 +2,9 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import zlib from 'node:zlib';
 import { generatePOD } from '../src/services/pdfService.js';
+import { PODS_DIR } from '../src/storage.js';
 import fs from 'fs';
 import path from 'path';
-import { fileURLToPath } from 'url';
-
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const PODS_DIR = path.join(process.cwd(), 'pods');
 
 // PNG válido de 1x1 px (blanco) codificado en base64.
 const VALID_PNG = 'iVBORw0KGgoAAAANSUhEUgAAAAgAAAAICAIAAABLbSncAAAAFUlEQVR4nGP8//8/AzbAhFV00EoAAFbUAw037MyjAAAAAElFTkSuQmCC';
