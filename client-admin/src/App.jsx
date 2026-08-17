@@ -627,7 +627,7 @@ function DriversSection({ API_BASE, drivers, loadAll }) {
               </td>
             </tr>
           ))}
-          {drivers.length === 0 && <tr><td style={td} colSpan={7} style={{color: C.muted}}>Sin repartidores.</td></tr>}
+          {drivers.length === 0 && <tr><td {...td} colSpan={7} style={{color: C.muted}}>Sin repartidores.</td></tr>}
         </tbody>
       </table>
     </div>
