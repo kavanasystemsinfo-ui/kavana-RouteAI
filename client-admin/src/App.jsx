@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 // Hooks extraídos en ./hooks/useAuth.js y ./hooks/useData.js — listos para migrar cuando el CI incluya client-admin build.
 // Migración planificada: sustituir estados inline de auth/datos por useAuth() y useData(). Ver DECISIONS.md.
 
@@ -247,12 +247,16 @@ export default function App() {
     return `${withDots},${decPart}`;
   };
 
-  const filteredStops = stops.filter(s =>
+  // Filtro de paradas memoizado (auditoría 2026-08-17): con 12.000+ paradas
+  // demo, recalcular este filtro + los 4 KPIs en CADA render congelaba el panel
+  // al teclear un filtro o cambiar de pestaña. Solo se recalcula cuando cambian
+  // las dependencias reales: paradas, driver/estado/fechas.
+  const filteredStops = useMemo(() => stops.filter(s =>
     (!filterDriver || String(s.driver_id) === String(filterDriver)) &&
     (!filterStatus || s.status === filterStatus) &&
     (!from || (s.created_at || '') >= from) &&
     (!to || (s.created_at || '') <= to + 'T23:59:59')
-  );
+  ), [stops, filterDriver, filterStatus, from, to]);
 
   if (!logged) {
     return (
@@ -273,22 +277,37 @@ export default function App() {
     );
   }
 
-  const kpi = {
+  // KPIs memoizados sobre el total (no sobre el filtro): mismo cálculo de
+  // siempre, pero solo se ejecuta cuando cambian las paradas (auditoría
+  // 2026-08-17: 4 filtros O(12.000) por render).
+  const kpi = useMemo(() => ({
     total: stops.length,
     delivered: stops.filter(s => s.status === 'delivered').length,
     pending: stops.filter(s => s.status === 'pending').length,
     incidents: stops.filter(s => s.status === 'incident').length
-  };
+  }), [stops]);
   // OPEX real desde sesiones de conductores (km reales).
   // El antiguo "OPEX est." (8km + 0.5h fijos por entrega) se elimino:
   // inflaba el km real ~4.5x y confundia. Solo se muestra OPEX real.
-  const closedSessions = sessions.filter(s => s.status === 'closed' && s.km_total);
+  const closedSessions = useMemo(() => sessions.filter(s => s.status === 'closed' && s.km_total), [sessions]);
   const opexReal = closedSessions.reduce((sum, s) => {
     const driver = drivers.find(d => d.id === s.driver_id);
     const fuelKey = `cost_per_km_${driver?.fuel_type || ''}`;
     const costKm = settings[fuelKey] || settings.cost_per_km || 0.3;
     return sum + parseFloat(s.km_total || 0) * costKm;
   }, 0).toFixed(2);
+  // Conteo por repartidor memoizado (auditoría 2026-08-17): el render hacía
+  // drivers.map(d => stops.filter(...)) → 12.000×N recorridos por render.
+  const perDriverStats = useMemo(() => {
+    const stats = new Map();
+    for (const s of stops) {
+      const cur = stats.get(s.driver_id) || { total: 0, done: 0 };
+      cur.total += 1;
+      if (s.status === 'delivered') cur.done += 1;
+      stats.set(s.driver_id, cur);
+    }
+    return stats;
+  }, [stops]);
   const S = theme === 'clasico'
     ? { bg: "url('/asphalt.png') center/cover no-repeat, #2d3239", text: '#e2e5eb', muted: '#9ba2b0', border: '#3d424d' }
     : { bg: "url('/asphalt.png') center/cover no-repeat, #171a21", text: C.text, muted: C.muted, border: C.border };
@@ -382,12 +401,12 @@ export default function App() {
             <div style={{background: C.panel, border: `1px solid ${C.border}`, borderRadius: 12, padding: 18}}>
               <h3 style={{marginTop: 0}}>Entregas por repartidor</h3>
               {drivers.map(d => {
-                const ds = stops.filter(s => s.driver_id === d.id);
-                const done = ds.filter(s => s.status === 'delivered').length;
-                const pct = ds.length ? Math.round(done / ds.length * 100) : 0;
+                const ds = perDriverStats.get(d.id) || { total: 0, done: 0 };
+                const done = ds.done;
+                const pct = ds.total ? Math.round(done / ds.total * 100) : 0;
                 return (
                   <div key={d.id} style={{marginBottom: 12}}>
-                    <div style={{display: 'flex', justifyContent: 'space-between', fontSize: 13}}><span>{d.name}</span><span style={{color: C.muted}}>{fmtNum(done)}/{fmtNum(ds.length)} ({pct}%)</span></div>
+                    <div style={{display: 'flex', justifyContent: 'space-between', fontSize: 13}}><span>{d.name}</span><span style={{color: C.muted}}>{fmtNum(done)}/{fmtNum(ds.total)} ({pct}%)</span></div>
                     <div style={{height: 8, background: C.panel2, borderRadius: 4, marginTop: 4, overflow: 'hidden'}}>
                       <div style={{height: '100%', width: `${pct}%`, background: C.green}} />
                     </div>
@@ -623,15 +642,24 @@ function StopsSection({ API_BASE, token, stops, drivers, driverName, filterDrive
       if (res.ok) onDelete();
       else alert('Error al eliminar');
     } catch (e) { alert('Error de conexión'); }
-  }; 
+  };
+  // Ventana de renderizado (auditoría 2026-08-17): la demo tiene 12.000+
+  // paradas y pintarlas todas en la tabla congelaba el navegador. Se renderizan
+  // las primeras N y el botón amplía la ventana; los filtros ya reducen antes.
+  const [visibleCount, setVisibleCount] = useState(200);
+  useEffect(() => setVisibleCount(200), [filterDriver, filterStatus, from, to]);
+  const visibleStops = stops.slice(0, visibleCount);
   return (
     <div>
       <h2>Repartos</h2>
       <Filters driversList={driversList} filterDriver={filterDriver} setFilterDriver={setFilterDriver} filterStatus={filterStatus} setFilterStatus={setFilterStatus} from={from} setFrom={setFrom} to={to} setTo={setTo} />
+      {stops.length > 200 && (
+        <p style={{color: C.muted, fontSize: 12, marginTop: 8}}>Mostrando {Math.min(visibleCount, stops.length).toLocaleString('es-ES')} de {stops.length.toLocaleString('es-ES')} paradas. Usa los filtros para acotar.</p>
+      )}
       <table style={{width: '100%', borderCollapse: 'collapse', fontSize: 13}}>
         <thead><tr style={{color: C.muted, textAlign: 'left'}}><th style={th}>#</th><th style={th}>Dirección</th><th style={th}>Repartidor</th><th style={th}>Cliente</th><th style={th}>Estado</th><th style={th}>Fecha</th><th style={th}>POD</th><th style={th}>Bultos</th><th style={th}></th></tr></thead>
         <tbody>
-          {stops.map(s => {
+          {visibleStops.map(s => {
             const st = STATUS[s.status] || STATUS.pending;
             return (
               <tr key={s.id} style={{borderTop: `1px solid ${C.border}`}}>
@@ -657,21 +685,35 @@ function StopsSection({ API_BASE, token, stops, drivers, driverName, filterDrive
               </tr>
             );
           })}
-          {stops.length === 0 && <tr><td style={{...td, color: C.muted}} colSpan={7}>Sin paradas.</td></tr>}
+          {visibleStops.length === 0 && <tr><td style={{...td, color: C.muted}} colSpan={7}>Sin paradas.</td></tr>}
         </tbody>
       </table>
+      {visibleCount < stops.length && (
+        <button onClick={() => setVisibleCount(c => c + 500)} style={{marginTop: 12, padding: '10px 18px', background: C.accent, color: '#000', border: 'none', borderRadius: 8, fontWeight: 700, cursor: 'pointer'}}>
+          Mostrar más paradas
+        </button>
+      )}
     </div>
   );
 }
 
 function SignaturesSection({ API_BASE, token, stops, drivers, driverName, filterDriver, setFilterDriver, from, setFrom, to, setTo, driversList }) {
   const delivered = stops.filter(s => s.status === 'delivered');
+  // Ventana de renderizado (auditoría 2026-08-17): cada tarjeta monta un iframe
+  // del POD; con 11.000+ entregas la demo se colgaba. Se renderizan las
+  // primeras 100 y el botón amplía.
+  const [visibleCount, setVisibleCount] = useState(100);
+  useEffect(() => setVisibleCount(100), [filterDriver, from, to]);
+  const visibleDelivered = delivered.slice(0, visibleCount);
   return (
     <div>
       <h2>Firmas de clientes</h2>
       <Filters driversList={driversList} filterDriver={filterDriver} setFilterDriver={setFilterDriver} from={from} setFrom={setFrom} to={to} setTo={setTo} />
+      {delivered.length > 100 && (
+        <p style={{color: C.muted, fontSize: 12, marginTop: 8}}>Mostrando {Math.min(visibleCount, delivered.length).toLocaleString('es-ES')} de {delivered.length.toLocaleString('es-ES')} firmas. Usa los filtros para acotar.</p>
+      )}
       <div style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 16, marginTop: 16}}>
-        {delivered.map(s => (
+        {visibleDelivered.map(s => (
           <div key={s.id} style={{background: C.panel, border: `1px solid ${C.border}`, borderRadius: 12, padding: 14}}>
             <div style={{fontSize: 13, fontWeight: 700, marginBottom: 4}}>{s.receiver_name || 'Cliente'}</div>
             <div style={{fontSize: 11, color: C.muted, marginBottom: 8}}>{driverName(s.driver_id)} · {(s.created_at || '').slice(0, 10)}</div>
@@ -681,6 +723,11 @@ function SignaturesSection({ API_BASE, token, stops, drivers, driverName, filter
         ))}
         {delivered.length === 0 && <div style={{color: C.muted}}>No hay firmas para este filtro.</div>}
       </div>
+      {visibleCount < delivered.length && (
+        <button onClick={() => setVisibleCount(c => c + 200)} style={{marginTop: 16, padding: '10px 18px', background: C.accent, color: '#000', border: 'none', borderRadius: 8, fontWeight: 700, cursor: 'pointer'}}>
+          Mostrar más firmas
+        </button>
+      )}
     </div>
   );
 }
