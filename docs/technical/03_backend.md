@@ -2,13 +2,26 @@
 
 Node/Express, PostgreSQL (Neon) en producción con fallback a JSON store en
 local. Desplegado en Fly.io (`kavana-routeai-api`, ver `server/Dockerfile` +
-`server/fly.toml`). **68 tests** con `node --test` (incluye autenticación JWT).
+`server/fly.toml`). **72 tests** con `node --test` (incluye autenticación JWT).
+
+## Esquema de BD (migraciones versionadas, desde 2026-08-17)
+El esquema vive en `server/migrations/NNN_nombre.sql` y se aplica al arrancar
+contra PostgreSQL (tabla `schema_migrations` registra lo aplicado):
+- `001_initial_schema.sql` — esquema completo del MVP (idempotente)
+- `002_indexes_ownership.sql` — índices para ownership y paneles (O(n) → índice)
+Añadir una migración nueva = crear `003_...sql`; se aplica sola en el siguiente
+arranque. Sin rollback por convención (migraciones aditivas).
+
+## Fail-fast de BD (desde 2026-08-17)
+`NODE_ENV=production` sin `PGHOST`/`DATABASE_URL` → la API NO arranca (antes
+caía en silencio al JSON store efímero). El fallback JSON queda solo para
+desarrollo local.
 
 ## Arranque
 ```bash
 cd server
 npm install
-npm test                # 68 tests verdes (incl. JWT)
+npm test                # 72 tests verdes (incl. JWT, migraciones, fail-fast)
 ROUTEAI_DB=/tmp/dev.json PORT=5001 node src/index.js
 ```
 

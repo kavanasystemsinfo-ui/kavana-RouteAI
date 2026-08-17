@@ -20,6 +20,8 @@ RUN npm ci --omit=dev --no-audit --no-fund
 
 # Código de la app (src/ contiene index.js, rutas, servicios y seed.js)
 COPY src ./src
+# Migraciones SQL versionadas (aplicadas en arranque sobre PostgreSQL)
+COPY migrations ./migrations
 
 # Directorios de artefactos (PODs y fotos de incidencias). En Fly viven en un
 # volumen persistente montado en /app/data (DATA_DIR, ver fly.toml [mounts]).
