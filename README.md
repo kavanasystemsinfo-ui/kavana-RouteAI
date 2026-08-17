@@ -41,7 +41,7 @@ La optimización de rutas usa un **algoritmo 2-opt local**: determinista, instan
 - **App del repartidor**: web responsive pensada para móvil (icono en pantalla de inicio). El ADR-001 evaluó PWA/nativa; hoy no hay service worker, es una SPA web.
 - **Torre de control**: panel de la oficina para cargar rutas, verificar bultos y seguir entregas.
 - **OCR**: extrae dirección y bultos del albarán (Tesseract.js + pdftotext + addressCleaner).
-- **Despliegue**: backend en Render (`kavana-routeai-api`), frontends en GitHub Pages.
+- **Despliegue**: backend en Fly.io (`kavana-routeai-api`), frontends en GitHub Pages.
 
 ---
 
@@ -54,7 +54,7 @@ La optimización de rutas usa un **algoritmo 2-opt local**: determinista, instan
 | Geocodificación | Google Maps API | **Nominatim + fallbacks** | Gratuito, ~80% acierto, suficiente para el MVP (ADR-002) |
 | Kilometraje | Input numérico rígido | **Texto con coma/punto** | Los teclados móviles españoles usan coma; 3 decimales (ADR-003) |
 | Costes | — | **Por tipo de combustible** | El supervisor asigna el tipo de combustible a cada repartidor (diésel, gasolina, híbrido, eléctrico); el coste se calcula con el precio de ese tipo (ADR-004) |
-| Infraestructura | VPS, Docker | **Render + GitHub Pages** | Bajo mantenimiento, free tier (ADR-005) |
+| Infraestructura | VPS, Docker, Render | **Fly.io + GitHub Pages** | Máquina 256MB con volumen persistente para PODs/fotos, auto-stop sin suspender (ADR-005). Migrado de Render free, que suspendía el servicio al agotar horas |
 
 ---
 
@@ -136,7 +136,7 @@ RouteAI incluye una **demo de empresa ficticia** para portfolio: 90 días de his
 |---|---|---|
 | Simulación diaria | 06:00 | Cierra jornadas de ayer, abre las de hoy, genera rutas del día |
 | Limpieza expirados | 03:00 | Borra datos de visitante caducados (24h) |
-| Ping antiduerme | Cada 10 min | Mantiene la API de Render despierta |
+| Ping antiduerme | Cada 10 min | Mantiene la API de Fly.io despierta (auto-start) |
 
 ---
 

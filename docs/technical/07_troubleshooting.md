@@ -13,7 +13,7 @@ backend → el login es "incorrecto" de verdad.
 
 **Cómo confirmar:**
 ```bash
-curl -s -X POST https://kavana-routeai-api.onrender.com/api/drivers/login \
+curl -s -X POST https://kavana-routeai-api.fly.dev/api/drivers/login \
   -H "Content-Type: application/json" -d '{"pin":"5855"}'
 # Si devuelve {"error":"PIN incorrecto"} → el repartidor no existe en el backend
 ```
@@ -21,10 +21,10 @@ curl -s -X POST https://kavana-routeai-api.onrender.com/api/drivers/login \
 **Solución inmediata (demo):** recrear el repartidor vía API o panel.
 ```bash
 # Obtener token oficina (PIN 0000 por defecto)
-TOKEN=$(curl -s -X POST https://kavana-routeai-api.onrender.com/api/office/login \
+TOKEN=$(curl -s -X POST https://kavana-routeai-api.fly.dev/api/office/login \
   -H "Content-Type: application/json" -d '{"pin":"0000"}' | python3 -c "import sys,json;print(json.load(sys.stdin)['token'])")
 # Crear repartidor
-curl -s -X POST https://kavana-routeai-api.onrender.com/api/drivers \
+curl -s -X POST https://kavana-routeai-api.fly.dev/api/drivers \
   -H "Content-Type: application/json" -H "Authorization: Bearer $TOKEN" \
   -d '{"name":"JORGE ADAN","pin":"5855","email":"jorge@kavanasystems.com"}'
 ```
@@ -35,7 +35,7 @@ curl -s -X POST https://kavana-routeai-api.onrender.com/api/drivers \
 **Otra causa posible:** `VITE_API_BASE` vacío en el build de la web/app → la
 app apunta a `http://<host>:5001` (puerto muerto) y cualquier fallo de red se
 muestra como "PIN incorrecto". El código ya tiene fallback a
-`https://kavana-routeai-api.onrender.com/api`, así que con el deploy actual no
+`https://kavana-routeai-api.fly.dev/api`, así que con el deploy actual no
 debería pasar. Si pasa, verificar el secret `VITE_API_BASE` en GitHub.
 
 ---
@@ -47,7 +47,7 @@ backend llamar y no renderiza. O bien el navegador tiene una versión
 remota (`server.url`) que estaba rota.
 
 **Solución:**
-- Rellenar el secret `VITE_API_BASE` = `https://kavana-routeai-api.onrender.com` en
+- Rellenar el secret `VITE_API_BASE` = `https://kavana-routeai-api.fly.dev` en
   GitHub (Settings → Secrets → Actions).
 - Relanzar el workflow `deploy-combined.yml` para redesplegar la web.
 
@@ -80,11 +80,11 @@ Pasaba antes con `force_orphan` y pasa si falta el archivo `CNAME`.
 
 ```bash
 # Backend vivo y CORS ok
-curl -s -i https://kavana-routeai-api.onrender.com/api/settings \
+curl -s -i https://kavana-routeai-api.fly.dev/api/settings \
   -H "Origin: https://routeai.kavanasystems.com" | grep -i "access-control\|HTTP/"
 
 # Login repartidor (debe dar success:true si el repartidor existe)
-curl -s -X POST https://kavana-routeai-api.onrender.com/api/drivers/login \
+curl -s -X POST https://kavana-routeai-api.fly.dev/api/drivers/login \
   -H "Content-Type: application/json" -d '{"pin":"5855"}'
 
 # Sitio y app

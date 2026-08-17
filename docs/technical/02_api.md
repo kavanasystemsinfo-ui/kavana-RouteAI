@@ -1,6 +1,6 @@
 # API REST — KAVANA Route AI
 
-Base: `https://kavana-routeai-api.onrender.com/api`
+Base: `https://kavana-routeai-api.fly.dev/api`
 
 > **Auth**: todos los endpoints de datos exigen `Authorization: Bearer <JWT>`.
 > Roles: `office` (Torre de Control) y `driver` (app repartidor). Sin token → `401`;

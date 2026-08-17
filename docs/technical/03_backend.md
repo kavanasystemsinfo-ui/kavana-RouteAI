@@ -1,14 +1,14 @@
 # Backend — KAVANA Route AI
 
 Node/Express, PostgreSQL (Neon) en producción con fallback a JSON store en
-local. Desplegado en Render (`kavana-routeai-api`). **43 tests** con
-`node --test` (incluye autenticación JWT).
+local. Desplegado en Fly.io (`kavana-routeai-api`, ver `server/Dockerfile` +
+`server/fly.toml`). **68 tests** con `node --test` (incluye autenticación JWT).
 
 ## Arranque
 ```bash
 cd server
 npm install
-npm test                # 43 tests verdes (incl. JWT)
+npm test                # 68 tests verdes (incl. JWT)
 ROUTEAI_DB=/tmp/dev.json PORT=5001 node src/index.js
 ```
 

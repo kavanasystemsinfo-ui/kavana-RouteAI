@@ -3,14 +3,14 @@
 ## Principio rector
 El VPS (167.233.97.71) es **solo entorno de desarrollo y documentación**. Los
 proyectos terminados viven fuera del VPS, igual que CleanStock:
-- Backend → **Render** (servicio `kavana-routeai-api`, Free).
+- Backend → **Fly.io** (app `kavana-routeai-api`, máquina 256MB con volumen persistente).
 - Frontends → **GitHub Pages** (sin servidor propio, HTTPS automático).
 
 ## Componentes
 
 ```
 ┌─────────────────────┐         ┌──────────────────────────┐
-│ App Repartidor      │  HTTPS  │ Backend API (Render)     │
+│ App Repartidor      │  HTTPS  │ Backend API (Fly.io)     │
 │ (routeai.           │ ──────▶ │ Express + PostgreSQL     │
 │  kavanasystems.com/ │ ◀────── │ /api/* , /pods/*          │
 │  app)               │         └──────────────────────────┘
@@ -26,9 +26,9 @@ proyectos terminados viven fuera del VPS, igual que CleanStock:
 ## Datos
 - **PostgreSQL (Neon)** en producción, con fallback a JSON store en local
   (`routeai.json`). Sin SQLite: se evitó la compilación nativa en Render Free.
-- PODs: PDFs generados con pdfkit en `./pods`. En Render son efímeros tras
-  spin-down; el endpoint `GET /api/stops/:id/pod` los regenera al vuelo si la
-  parada tiene firma guardada.
+- PODs: PDFs generados con pdfkit en `./pods`. Viven en el volumen de Fly.io
+  (`/app/data`, persistente entre deploys). El endpoint `GET /api/stops/:id/pod`
+  regenera al vuelo si la parada tiene firma guardada.
 
 ## Identidades y autenticación (JWT)
 - **Repartidor**: se identifica con un PIN (4 dígitos) que se guarda en
@@ -39,7 +39,7 @@ proyectos terminados viven fuera del VPS, igual que CleanStock:
   `POST /api/office/login` devuelve un **JWT** (`role:office`). El panel lo guarda
   en `sessionStorage` y lo envía en cada fetch.
 - **Firma**: HS256 con `crypto` nativo de Node (sin dependencias externas).
-  Secreto en `JWT_SECRET` (env de Render). Sin token → `401`; rol incorrecto → `403`.
+  Secreto en `JWT_SECRET` (secret de Fly.io). Sin token → `401`; rol incorrecto → `403`.
 - MVP sin usuarios/roles múltiples (YAGNI): solo dos roles (office / driver).
 
 ## Seguridad

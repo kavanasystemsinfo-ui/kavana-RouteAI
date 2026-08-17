@@ -28,7 +28,7 @@ La app es una **web responsive** (SPA) accesible desde el navegador del móvil:
   worker, así que no funciona sin conexión (pendiente de implementar).
 
 ## Variables
-- `VITE_API_BASE` (build-time) → `https://kavana-routeai-api.onrender.com`
+- `VITE_API_BASE` (build-time) → `https://kavana-routeai-api.fly.dev`
   Sin slash final; el cliente añade `/api`.
 
 ## Build

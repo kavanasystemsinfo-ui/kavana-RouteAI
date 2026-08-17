@@ -28,7 +28,7 @@ limpia la sesión. PIN por defecto `0000` (cambiable en Render con
 - **Incidencias**: lista de incidencias reportadas por los repartidores.
 
 ## Variables
-- `VITE_API_BASE` (build-time) → `https://kavana-routeai-api.onrender.com`
+- `VITE_API_BASE` (build-time) → `https://kavana-routeai-api.fly.dev`
 
 ## Build
 ```bash

@@ -18,9 +18,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends poppler-utils \
 COPY package.json package-lock.json ./
 RUN npm ci --omit=dev --no-audit --no-fund
 
-# Código de la app
+# Código de la app (src/ contiene index.js, rutas, servicios y seed.js)
 COPY src ./src
-COPY seed.js ./seed.js
 
 # Directorios de artefactos (PODs y fotos de incidencias). En Fly viven en un
 # volumen persistente montado en /app/data (DATA_DIR, ver fly.toml [mounts]).
