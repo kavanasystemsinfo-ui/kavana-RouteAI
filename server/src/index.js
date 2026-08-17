@@ -4,7 +4,7 @@ import { initDb } from './db.js';
 import apiRouter from './routes/api.js';
 import { extractToken, verifyToken } from './auth.js';
 import path from 'path';
-import { fileURLToPath } from 'url';
+import { fileURLToPath, pathToFileURL } from 'url';
 import fs from 'fs';
 import { seedDrivers } from './seed.js';
 
@@ -70,40 +70,44 @@ export function createServer(db) {
   return app;
 }
 
-// Arranque
+// Arranque — SOLO cuando index.js es el entry point (no al importarlo desde
+// tests: cada archivo de test importaba createServer y disparaba un listen en
+// el puerto 5001, provocando EADDRINUSE en CI con archivos en paralelo).
 const PORT = process.env.PORT || 5001;
 
-(async () => {
-  let db;
-  try {
-    db = await initDb();
-  } catch (err) {
-    console.error('[db] Error conectando a PostgreSQL, usando JSON fallback:', err.message);
-    // Forzar JSON store: eliminar variables PG para que initDb no reintente
-    delete process.env.PGHOST;
-    delete process.env.DATABASE_URL;
-    const fallbackPath = path.join(process.cwd(), 'routeai_fallback.json');
-    db = await initDb(fallbackPath);
-  }
-  const seedResult = await seedDrivers(db);
-  if (seedResult.created) console.log(`Seed: repartidor creado (id ${seedResult.id}, PIN ${process.env.DEFAULT_DRIVER_PIN || '5855'}).`);
-
-  const app = createServer(db);
-
-  if (process.env.OFFICE_PIN === '0000' || !process.env.OFFICE_PIN) {
-    if (process.env.NODE_ENV === 'production') {
-      console.error('OFFICE_PIN no configurado o con valor por defecto (0000): la API no arranca en producción sin un PIN real definido por entorno.');
-      process.exit(1);
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  (async () => {
+    let db;
+    try {
+      db = await initDb();
+    } catch (err) {
+      console.error('[db] Error conectando a PostgreSQL, usando JSON fallback:', err.message);
+      // Forzar JSON store: eliminar variables PG para que initDb no reintente
+      delete process.env.PGHOST;
+      delete process.env.DATABASE_URL;
+      const fallbackPath = path.join(process.cwd(), 'routeai_fallback.json');
+      db = await initDb(fallbackPath);
     }
-    console.warn('⚠️  OFFICE_PIN usando valor por defecto (0000). Cambiar en producción vía variable de entorno.');
-  }
-  if (!process.env.JWT_SECRET || process.env.JWT_SECRET === 'routeai-dev-secret-change-me') {
-    if (process.env.NODE_ENV === 'production') {
-      console.error('JWT_SECRET no configurado o con el fallback de desarrollo: la API no arranca en producción sin un secreto real.');
-      process.exit(1);
-    }
-    console.warn('⚠️  JWT_SECRET usando valor por defecto o fallback de desarrollo. Configurar con un valor fuerte y aleatorio en producción.');
-  }
+    const seedResult = await seedDrivers(db);
+    if (seedResult.created) console.log(`Seed: repartidor creado (id ${seedResult.id}, PIN ${process.env.DEFAULT_DRIVER_PIN || '5855'}).`);
 
-  app.listen(PORT, () => console.log(`KAVANA Route AI API en puerto ${PORT}`));
-})();
+    const app = createServer(db);
+
+    if (process.env.OFFICE_PIN === '0000' || !process.env.OFFICE_PIN) {
+      if (process.env.NODE_ENV === 'production') {
+        console.error('OFFICE_PIN no configurado o con valor por defecto (0000): la API no arranca en producción sin un PIN real definido por entorno.');
+        process.exit(1);
+      }
+      console.warn('⚠️  OFFICE_PIN usando valor por defecto (0000). Cambiar en producción vía variable de entorno.');
+    }
+    if (!process.env.JWT_SECRET || process.env.JWT_SECRET === 'routeai-dev-secret-change-me') {
+      if (process.env.NODE_ENV === 'production') {
+        console.error('JWT_SECRET no configurado o con el fallback de desarrollo: la API no arranca en producción sin un secreto real.');
+        process.exit(1);
+      }
+      console.warn('⚠️  JWT_SECRET usando valor por defecto o fallback de desarrollo. Configurar con un valor fuerte y aleatorio en producción.');
+    }
+
+    app.listen(PORT, () => console.log(`KAVANA Route AI API en puerto ${PORT}`));
+  })();
+}
