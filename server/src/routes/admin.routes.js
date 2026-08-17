@@ -93,7 +93,7 @@ export default function adminRouter(db) {
       if (!question || typeof question !== 'string' || question.trim().length < 4) return res.status(400).json({ error: 'Escribe una pregunta (mínimo 4 caracteres)' });
       if (question.length > 500) return res.status(400).json({ error: 'La pregunta es demasiado larga (máximo 500 caracteres)' });
 
-      const ip = req.headers['x-forwarded-for']?.split(',')[0]?.trim() || req.socket?.remoteAddress || 'unknown';
+      const ip = req.ip || req.socket?.remoteAddress || 'unknown';
       const ahora = Date.now();
       const limite = assistantLimits.get(ip);
       if (!limite || limite.resetAt < ahora) assistantLimits.set(ip, { count: 1, resetAt: ahora + 24 * 3600 * 1000 });

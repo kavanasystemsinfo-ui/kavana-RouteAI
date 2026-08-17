@@ -18,6 +18,11 @@ const ALLOWED = (process.env.CORS_ORIGINS || 'https://kavanasystemsinfo-ui.githu
 export function createServer(db) {
   const app = express();
 
+  // Fase 1 (auditoría 2026-08-17): Render está detrás de un proxy HTTPS, así
+  // que confiamos en la cabecera del edge para derivar la IP real del cliente
+  // (req.ip). Con trust proxy 1, X-Forwarded-For la fija Render, no el cliente.
+  app.set('trust proxy', 1);
+
   // CORS (antes de rutas)
   app.use((req, res, next) => {
     const origin = req.headers.origin;
@@ -36,19 +41,32 @@ export function createServer(db) {
   app.get('/health', (req, res) => res.json({ status: 'ok' }));
   app.use('/api', apiRouter(db));
   if (!fs.existsSync(PODS_DIR)) fs.mkdirSync(PODS_DIR, { recursive: true });
-  // /pods y /incidents requieren JWT (no se sirven públicamente).
-  const requirePodJwt = (req, res, next) => {
-    if (req.query.token && String(req.query.token).length < 8) {
-      // Si query tiene algo corto (no un JWT), intentar con header también.
-    }
+  // /pods y /incidents requieren JWT (no se sirven públicamente) y ownership:
+  // un driver solo puede leer archivos de SUS paradas. Los nombres de archivo
+  // son pod_<stopId>_<ts>.pdf / incident_<stopId>_<ts>.<ext> (auditoría 2026-08-17).
+  const requirePodAccess = (db) => async (req, res, next) => {
     const token = extractToken(req);
     if (!token) return res.status(401).json({ error: 'No autenticado' });
-    try { verifyToken(token); next(); }
-    catch (e) { res.status(401).json({ error: e.message }); }
+    try {
+      const payload = verifyToken(token);
+      if (payload.role !== 'driver') return next(); // office u otro rol de confianza
+      const m = /(pod|incident)_(\d+)_/.exec(path.basename(req.path));
+      if (!m) return res.status(403).json({ error: 'Archivo no reconocido' });
+      const stopId = Number(m[2]);
+      const allStops = await db.queries.listStops(db);
+      const stop = allStops.find((s) => String(s.id) === String(stopId));
+      if (!stop) return res.status(404).json({ error: 'Parada no encontrada' });
+      if (String(stop.driver_id) !== String(payload.driverId)) {
+        return res.status(403).json({ error: 'Ese archivo no pertenece a tu ruta' });
+      }
+      next();
+    } catch (e) {
+      res.status(401).json({ error: e.message });
+    }
   };
-  app.use('/pods', requirePodJwt, express.static(PODS_DIR));
+  app.use('/pods', requirePodAccess(db), express.static(PODS_DIR));
   if (!fs.existsSync(INCIDENTS_DIR)) fs.mkdirSync(INCIDENTS_DIR, { recursive: true });
-  app.use('/incidents', requirePodJwt, express.static(INCIDENTS_DIR));
+  app.use('/incidents', requirePodAccess(db), express.static(INCIDENTS_DIR));
   return app;
 }
 
@@ -73,9 +91,17 @@ const PORT = process.env.PORT || 5001;
   const app = createServer(db);
 
   if (process.env.OFFICE_PIN === '0000' || !process.env.OFFICE_PIN) {
+    if (process.env.NODE_ENV === 'production') {
+      console.error('OFFICE_PIN no configurado o con valor por defecto (0000): la API no arranca en producción sin un PIN real definido por entorno.');
+      process.exit(1);
+    }
     console.warn('⚠️  OFFICE_PIN usando valor por defecto (0000). Cambiar en producción vía variable de entorno.');
   }
   if (!process.env.JWT_SECRET || process.env.JWT_SECRET === 'routeai-dev-secret-change-me') {
+    if (process.env.NODE_ENV === 'production') {
+      console.error('JWT_SECRET no configurado o con el fallback de desarrollo: la API no arranca en producción sin un secreto real.');
+      process.exit(1);
+    }
     console.warn('⚠️  JWT_SECRET usando valor por defecto o fallback de desarrollo. Configurar con un valor fuerte y aleatorio en producción.');
   }
 

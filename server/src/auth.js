@@ -2,7 +2,20 @@
 // Robustez desde día 1: los datos y las escrituras quedan protegidos por firma.
 import crypto from 'crypto';
 
-const getSecret = () => process.env.JWT_SECRET || 'routeai-dev-secret-change-me';
+const DEV_SECRET = 'routeai-dev-secret-change-me';
+
+// Fase 1 (auditoría 2026-08-17): el fallback de desarrollo es inaceptable en
+// producción — cualquiera que conozca el repo podría firmar tokens válidos.
+function getSecret() {
+  const secret = process.env.JWT_SECRET;
+  if (process.env.NODE_ENV === 'production') {
+    if (!secret || secret === DEV_SECRET) {
+      throw new Error('JWT_SECRET no configurado en producción: la API no arranca sin un secreto real');
+    }
+    return secret;
+  }
+  return secret || DEV_SECRET;
+}
 
 function base64url(input) {
   return Buffer.from(input).toString('base64url');
@@ -41,7 +54,10 @@ export function verifyToken(token, secret = getSecret()) {
   } catch (e) {
     throw new Error('Payload inválido');
   }
-  if (payload.exp && Math.floor(Date.now() / 1000) > payload.exp) {
+  // Fase 1 (auditoría 2026-08-17): exigir campo exp — un token firmado sin exp
+  // nunca expira y convierte cualquier robo de token en acceso permanente.
+  if (!payload.exp) throw new Error('Token sin expiración');
+  if (Math.floor(Date.now() / 1000) > payload.exp) {
     throw new Error('Token expirado');
   }
   return payload;

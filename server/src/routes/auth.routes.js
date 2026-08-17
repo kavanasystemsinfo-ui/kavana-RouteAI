@@ -7,7 +7,7 @@ const loginLimits = new Map(); // ip → {count, resetAt}
 export function resetLoginLimits() { loginLimits.clear(); }
 
 function checkRateLimit(req, res, next) {
-  const ip = req.headers['x-forwarded-for']?.split(',')[0]?.trim() || req.socket?.remoteAddress || 'unknown';
+  const ip = req.ip || req.socket?.remoteAddress || 'unknown';
   const now = Date.now();
   const limit = loginLimits.get(ip);
   if (!limit || limit.resetAt < now) {
@@ -37,11 +37,14 @@ export default function authRouter(db) {
     } catch (error) { res.status(500).json({ error: error.message }); }
   });
 
-  // Office login (con rate limiting)
+  // Office login (con rate limiting). En desarrollo el PIN por defecto es 0000
+  // (mismo criterio que el fallback de JWT_SECRET); en producción NO existe
+  // fallback: el PIN debe venir de OFFICE_PIN en el entorno (auditoría 2026-08-17).
   router.post('/office/login', checkRateLimit, (req, res) => {
     try {
       const { pin } = req.body;
-      const officePin = process.env.OFFICE_PIN || '0000';
+      const officePin = process.env.OFFICE_PIN || (process.env.NODE_ENV === 'production' ? null : '0000');
+      if (!officePin) return res.status(500).json({ error: 'OFFICE_PIN no configurado en el servidor' });
       if (pin !== officePin) return res.status(401).json({ error: 'PIN incorrecto' });
       const token = signToken({ role: 'office' });
       res.json({ success: true, token });
