@@ -258,28 +258,12 @@ export default function App() {
     (!to || (s.created_at || '') <= to + 'T23:59:59')
   ), [stops, filterDriver, filterStatus, from, to]);
 
-  if (!logged) {
-    return (
-      <div style={{position: 'fixed', inset: 0, background: C.bg, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', fontFamily: 'system-ui, sans-serif', color: C.text}}>
-        <img src="/logo.png" alt="Kavana Route AI" style={{height: 80, marginBottom: 16, objectFit: 'contain'}} />
-        <div style={{textAlign: 'center', marginBottom: 32}}>
-          <h1 style={{margin: 0, fontWeight: 900, fontSize: 22, letterSpacing: '-1px', color: C.accent}}>KAVANA</h1>
-          <p style={{margin: '4px 0 0', fontSize: 10, color: C.muted, fontWeight: 900, letterSpacing: 3}}>ROUTE AI</p>
-        </div>
-        <p style={{color: C.muted, marginBottom: 24, fontSize: 13, fontWeight: 600}}>Torre de Control · Oficina</p>
-        <form onSubmit={login} style={{display: 'flex', flexDirection: 'column', gap: 12, width: 260}}>
-          <input value={pin} onChange={e => setPin(e.target.value)} type="password" inputMode="numeric" placeholder="PIN de oficina" style={{padding: 16, background: C.panel, border: `1px solid ${C.border}`, borderRadius: 10, color: C.text, fontSize: 22, textAlign: 'center', letterSpacing: 6}} />
-          <button type="submit" style={{padding: 14, background: C.accent, color: '#000', border: 'none', borderRadius: 10, fontWeight: 900, cursor: 'pointer'}}>ENTRAR</button>
-        </form>
-        <p style={{color: C.muted, marginTop: 20, fontSize: 12, maxWidth: 340, textAlign: 'center', lineHeight: 1.5}}>💬 ¿Quieres saber cómo funciona este proyecto? Prueba el <strong style={{color: C.text}}>asistente técnico</strong> (botón abajo): responde con la documentación real de Route AI.</p>
-        <AssistantWidget API_BASE={API_BASE} />
-      </div>
-    );
-  }
-
   // KPIs memoizados sobre el total (no sobre el filtro): mismo cálculo de
   // siempre, pero solo se ejecuta cuando cambian las paradas (auditoría
-  // 2026-08-17: 4 filtros O(12.000) por render).
+  // 2026-08-17: 4 filtros O(12.000) por render). VAN ANTES del return
+  // condicional de login: si un hook se ejecuta solo tras loguear, React
+  // revienta con "Rendered more hooks than during the previous render"
+  // (error #310) y la Torre se queda en blanco tras el PIN.
   const kpi = useMemo(() => ({
     total: stops.length,
     delivered: stops.filter(s => s.status === 'delivered').length,
@@ -308,6 +292,26 @@ export default function App() {
     }
     return stats;
   }, [stops]);
+
+  if (!logged) {
+    return (
+      <div style={{position: 'fixed', inset: 0, background: C.bg, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', fontFamily: 'system-ui, sans-serif', color: C.text}}>
+        <img src="/logo.png" alt="Kavana Route AI" style={{height: 80, marginBottom: 16, objectFit: 'contain'}} />
+        <div style={{textAlign: 'center', marginBottom: 32}}>
+          <h1 style={{margin: 0, fontWeight: 900, fontSize: 22, letterSpacing: '-1px', color: C.accent}}>KAVANA</h1>
+          <p style={{margin: '4px 0 0', fontSize: 10, color: C.muted, fontWeight: 900, letterSpacing: 3}}>ROUTE AI</p>
+        </div>
+        <p style={{color: C.muted, marginBottom: 24, fontSize: 13, fontWeight: 600}}>Torre de Control · Oficina</p>
+        <form onSubmit={login} style={{display: 'flex', flexDirection: 'column', gap: 12, width: 260}}>
+          <input value={pin} onChange={e => setPin(e.target.value)} type="password" inputMode="numeric" placeholder="PIN de oficina" style={{padding: 16, background: C.panel, border: `1px solid ${C.border}`, borderRadius: 10, color: C.text, fontSize: 22, textAlign: 'center', letterSpacing: 6}} />
+          <button type="submit" style={{padding: 14, background: C.accent, color: '#000', border: 'none', borderRadius: 10, fontWeight: 900, cursor: 'pointer'}}>ENTRAR</button>
+        </form>
+        <p style={{color: C.muted, marginTop: 20, fontSize: 12, maxWidth: 340, textAlign: 'center', lineHeight: 1.5}}>💬 ¿Quieres saber cómo funciona este proyecto? Prueba el <strong style={{color: C.text}}>asistente técnico</strong> (botón abajo): responde con la documentación real de Route AI.</p>
+        <AssistantWidget API_BASE={API_BASE} />
+      </div>
+    );
+  }
+
   const S = theme === 'clasico'
     ? { bg: "url('/asphalt.png') center/cover no-repeat, #2d3239", text: '#e2e5eb', muted: '#9ba2b0', border: '#3d424d' }
     : { bg: "url('/asphalt.png') center/cover no-repeat, #171a21", text: C.text, muted: C.muted, border: C.border };
