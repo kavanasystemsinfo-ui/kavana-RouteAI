@@ -73,6 +73,12 @@ const pgQueries = {
     if (filters.to) { params.push(filters.to); sql += ` AND created_at <= $${params.length}`; }
     sql += ' ORDER BY stop_number ASC';
     const res = await pool.query(sql, params);
+    // G6 (auditoría 2026-08-22): proyección ligera opcional para listados del
+    // panel — items JSON puede pesar MB con 12k filas. El detalle completo
+    // (con items) lo pide el endpoint de parada individual.
+    if (filters.lite) {
+      return res.rows.map(({ items, session_id, expira_en, ...rest }) => ({ ...rest }));
+    }
     return res.rows;
   },
   addStop: async (pool, stopNumber, address, status = 'pending', driverId = null, items = '', extra = {}) => {
@@ -131,6 +137,22 @@ const pgQueries = {
   },
   listIncidents: async (pool) => {
     const res = await pool.query('SELECT * FROM incidents ORDER BY created_at DESC');
+    return res.rows;
+  },
+  // Auditoría 2026-08-22 (G6): sustituye a los 3 listados + find() O(n·m) de
+  // /incidents. Una sola query con JOINs y filtro from/to en SQL.
+  listIncidentsJoined: async (pool, { from, to } = {}) => {
+    let sql = `SELECT i.id, i.stop_id, i.type, i.notes, i.created_at,
+                      s.address, s.driver_id, d.name AS driver_name
+               FROM incidents i
+               LEFT JOIN stops s ON s.id = i.stop_id
+               LEFT JOIN drivers d ON d.id = s.driver_id
+               WHERE 1=1`;
+    const params = [];
+    if (from) { params.push(from); sql += ` AND i.created_at >= $${params.length}`; }
+    if (to) { params.push(to); sql += ` AND i.created_at <= $${params.length}`; }
+    sql += ' ORDER BY i.created_at DESC';
+    const res = await pool.query(sql, params);
     return res.rows;
   },
   setSetting: async (pool, key, value) => {
@@ -195,6 +217,18 @@ const pgQueries = {
     const res = await pool.query('SELECT * FROM driver_sessions WHERE driver_id=$1 ORDER BY started_at DESC', [driverId]);
     return res.rows;
   },
+  // Auditoría 2026-08-22 (G6): sustituye al bucle N+1 de /driver/sessions.
+  // Una sola query con JOIN + filtro from/to en SQL.
+  listSessionsJoined: async (pool, { from, to } = {}) => {
+    let sql = `SELECT s.*, d.name AS driver_name
+               FROM driver_sessions s JOIN drivers d ON d.id = s.driver_id WHERE 1=1`;
+    const params = [];
+    if (from) { params.push(from); sql += ` AND s.started_at >= $${params.length}`; }
+    if (to) { params.push(to); sql += ` AND s.started_at <= $${params.length}`; }
+    sql += ' ORDER BY s.started_at DESC';
+    const res = await pool.query(sql, params);
+    return res.rows;
+  },
   // Limpieza de datos de visitante expirados (cron diario).
   // Borra drivers con expira_en < NOW() y sus paradas/incidencias/pods/sesiones.
   async cleanupExpired(pool) {
@@ -256,7 +290,12 @@ const jsonQueries = {
     if (filters.status) stops = stops.filter((s) => s.status === filters.status);
     if (filters.from) stops = stops.filter((s) => (s.created_at || '') >= filters.from);
     if (filters.to) stops = stops.filter((s) => (s.created_at || '') <= filters.to);
-    return stops.sort((a, b) => (a.stop_number || 0) - (b.stop_number || 0));
+    stops = stops.sort((a, b) => (a.stop_number || 0) - (b.stop_number || 0));
+    // G6: misma proyección lite que el adapter PG.
+    if (filters.lite) {
+      return stops.map(({ items, session_id, expira_en, ...rest }) => ({ ...rest }));
+    }
+    return stops;
   },
   addStop: (db, stopNumber, address, status = 'pending', driverId = null, items = '', extra = {}) => {
     const id = db.nextStopId();
@@ -285,6 +324,31 @@ const jsonQueries = {
   },
   listIncidents: (db) => {
     return (db._store.incidents || []).slice().sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+  },
+  // G6: equivalente JSON de /incidents con JOINs resueltos en memoria.
+  listIncidentsJoined: (db, { from, to } = {}) => {
+    const f = from ? new Date(from).getTime() : null;
+    const t = to ? new Date(to).getTime() : null;
+    const stopsById = new Map((db._store.stops || []).map((s) => [s.id, s]));
+    const driversById = new Map((db._store.drivers || []).map((d) => [d.id, d.name]));
+    return (db._store.incidents || [])
+      .filter((inc) => {
+        const t0 = inc.created_at ? new Date(inc.created_at).getTime() : null;
+        if (f !== null && (t0 === null || t0 < f)) return false;
+        if (t !== null && (t0 === null || t0 > t)) return false;
+        return true;
+      })
+      .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
+      .map((inc) => {
+        const stop = stopsById.get(inc.stop_id);
+        return {
+          id: inc.id, stop_id: inc.stop_id, type: inc.type, notes: inc.notes,
+          created_at: inc.created_at,
+          address: stop?.address ?? null,
+          driver_id: stop?.driver_id ?? null,
+          driver_name: stop ? driversById.get(stop.driver_id) ?? null : null,
+        };
+      });
   },
   setSetting: (db, key, value) => { db._store.settings[key] = parseFloat(value); db._save(); },
   getSettings: (db) => ({ ...db._store.settings }),
@@ -329,6 +393,21 @@ const jsonQueries = {
   },
   listSessions: (db, driverId) => {
     return (db._store.sessions || []).filter(s => s.driver_id === driverId).sort((a,b) => b.started_at.localeCompare(a.started_at));
+  },
+  // G6: equivalente JSON del JOIN de /driver/sessions (mismo contrato).
+  listSessionsJoined: (db, { from, to } = {}) => {
+    const f = from ? new Date(from).getTime() : null;
+    const t = to ? new Date(to).getTime() : null;
+    const driversById = new Map((db._store.drivers || []).map((d) => [d.id, d.name]));
+    return (db._store.sessions || [])
+      .filter((s) => {
+        const t0 = s.started_at ? new Date(s.started_at).getTime() : null;
+        if (f !== null && (t0 === null || t0 < f)) return false;
+        if (t !== null && (t0 === null || t0 > t)) return false;
+        return true;
+      })
+      .sort((a, b) => String(b.started_at).localeCompare(String(a.started_at)))
+      .map((s) => ({ ...s, driver_name: driversById.get(s.driver_id) || '—' }));
   },
   cleanupExpired: (db) => {
     const now = new Date().toISOString();

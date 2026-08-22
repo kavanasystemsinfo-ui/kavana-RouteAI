@@ -30,49 +30,30 @@ export default function adminRouter(db) {
     } catch (error) { res.status(500).json({ error: error.message }); }
   });
 
-  // Admin sessions history
+  // Admin sessions history — G6 (auditoría 2026-08-22): una sola query con
+  // JOIN y filtro from/to en SQL (antes: 1 query por driver + filtro en JS).
   router.get('/driver/sessions', requireAuth(['office']), async (req, res) => {
     try {
       const { from, to } = req.query;
-      const f = from ? new Date(from).getTime() : null;
-      const t = to ? new Date(to + 'T23:59:59').getTime() : null;
-      const drivers = await q.listDrivers(db);
-      const allSessions = [];
-      for (const d of drivers) {
-        const sessions = await q.listSessions(db, d.id);
-        for (const s of sessions) {
-          const t0 = s.started_at ? new Date(s.started_at).getTime() : null;
-          if (f !== null && (t0 === null || t0 < f)) continue;
-          if (t !== null && (t0 === null || t0 > t)) continue;
-          allSessions.push({ ...s, driver_name: d.name });
-        }
-      }
-      allSessions.sort((a, b) => new Date(b.started_at) - new Date(a.started_at));
-      res.json(allSessions);
+      const f = from ? new Date(from) : null;
+      const t = to ? new Date(to + 'T23:59:59') : null;
+      const sessions = await q.listSessionsJoined(db, { from: f || undefined, to: t || undefined });
+      res.json(sessions);
     } catch (error) { res.status(500).json({ error: error.message }); }
   });
 
-  // Incidents list
+  // Incidents list — G6 (auditoría 2026-08-22): JOINs en SQL en vez de cargar
+  // TODAS las incidencias + paradas + drivers y resolver con find() O(n·m).
   router.get('/incidents', requireAuth(['office']), async (req, res) => {
     try {
       const { from, to } = req.query;
-      const f = from ? new Date(from).getTime() : null;
-      const t = to ? new Date(to + 'T23:59:59').getTime() : null;
-      const allIncidents = await q.listIncidents(db);
-      const rangoIncidents = allIncidents.filter((inc) => {
-        const t0 = inc.created_at ? new Date(inc.created_at).getTime() : null;
-        if (f !== null && (t0 === null || t0 < f)) return false;
-        if (t !== null && (t0 === null || t0 > t)) return false;
-        return true;
-      });
-      const allStops = await q.listStops(db, { from: from || undefined, to: to || undefined });
-      const allDrivers = await q.listDrivers(db);
-      res.json(rangoIncidents.map((inc) => {
-        const stop = allStops.find((s) => s.id === inc.stop_id);
-        const driver = allDrivers.find((d) => d.id === stop?.driver_id);
+      const f = from ? new Date(from) : null;
+      const t = to ? new Date(to + 'T23:59:59') : null;
+      const rows = await q.listIncidentsJoined(db, { from: f || undefined, to: t || undefined });
+      res.json(rows.map((inc) => {
         let photo_data = inc.photo_data || '';
         if (photo_data.length > 200) photo_data = '/incidents/legacy';
-        return { ...inc, photo_data, driver_name: driver?.name || '—', address: stop?.address || '—' };
+        return { ...inc, photo_data, driver_name: inc.driver_name || '—', address: inc.address || '—' };
       }));
     } catch (error) { res.status(500).json({ error: error.message }); }
   });

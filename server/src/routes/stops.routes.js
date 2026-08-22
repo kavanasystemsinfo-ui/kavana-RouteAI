@@ -30,13 +30,16 @@ export default function stopsRouter(db) {
   };
 
   // Stops list — driver solo ve sus paradas; oficina puede filtrar por driver.
+  // G6 (auditoría 2026-08-22): ?lite=1 excluye items/session_id/expira_en del
+  // payload (MB con 12k filas demo). La app del repartidor NO usa lite.
   router.get('/stops', requireAuth(['office', 'driver']), async (req, res) => {
     try {
-      let { driver_id, status, from, to } = req.query;
+      let { driver_id, status, from, to, lite } = req.query;
       if (req.user.role === 'driver') driver_id = String(req.user.driverId);
       const stops = await q.listStops(db, {
         driver_id: driver_id !== undefined ? Number(driver_id) : undefined,
-        status: status || undefined, from: from || undefined, to: to || undefined
+        status: status || undefined, from: from || undefined, to: to || undefined,
+        lite: lite === '1' && req.user.role === 'office',
       });
       const drivers = await q.listDrivers(db);
       const demoDriverIds = new Set(drivers.filter((d) => d.is_demo).map((d) => d.id));

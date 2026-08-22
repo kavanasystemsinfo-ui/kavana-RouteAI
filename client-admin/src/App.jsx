@@ -163,7 +163,7 @@ export default function App() {
       const asArray = (x) => Array.isArray(x) ? x : [];
       const [d, s, i, set, sess] = await Promise.all([
         authFetch(`${API_BASE}/drivers`).then(r => r.json()),
-        authFetch(`${API_BASE}/stops${q}`).then(r => r.json()),
+        authFetch(`${API_BASE}/stops${q}${q ? '&' : '?'}lite=1`).then(r => r.json()),
         authFetch(`${API_BASE}/incidents${q}`).then(r => r.json()),
         authFetch(`${API_BASE}/settings`).then(r => r.json()),
         authFetch(`${API_BASE}/driver/sessions${q}`).then(r => r.json())
