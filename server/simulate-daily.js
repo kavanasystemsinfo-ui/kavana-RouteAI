@@ -153,8 +153,13 @@ async function main() {
   const pendientesViejos = await pool.query("DELETE FROM stops WHERE status = 'pending' AND created_at < $1", [hoy]);
   console.log(`  • Pendientes de días anteriores resueltos: ${pendientesViejos.rowCount}`);
 
-  // 2) Cerrar jornadas activas de ayer (km_final = km_initial + ruta típica)
-  const activas = await pool.query("SELECT id, driver_id, km_initial FROM driver_sessions WHERE status = 'active'");
+  // 2) Cerrar jornadas activas de AYER o anteriores (auditoría 2026-08-22, G1):
+  //    NUNCA cerrar una sesión de HOY — si un repartidor real tiene la jornada
+  //    abierta al pasar el cron, sus km reales no se tocan con valores inventados.
+  const activas = await pool.query(
+    "SELECT id, driver_id, km_initial FROM driver_sessions WHERE status = 'active' AND date < $1",
+    [hoy]
+  );
   for (const s of activas.rows) {
     const kmFinal = parseFloat(s.km_initial) + entre(25, 45);
     const kmTotal = parseFloat((kmFinal - parseFloat(s.km_initial)).toFixed(3));
@@ -197,12 +202,20 @@ async function main() {
       continue;
     }
 
-    // Abrir jornada de hoy
-    const sessionRes = await pool.query(
-      "INSERT INTO driver_sessions (driver_id, km_initial, km_final, km_total, date, started_at, status) VALUES ($1,$2,NULL,NULL,$3,NOW(),'active') RETURNING id",
-      [d.id, kmInitial, hoy]
+    // Abrir jornada de hoy — idempotente (auditoría 2026-08-22, G1):
+    // si ya existe una active para este driver y esta fecha, no duplicar
+    // (reintentos del cron o ejecuciones concurrentes).
+    const yaActiva = await pool.query(
+      "SELECT id FROM driver_sessions WHERE driver_id = $1 AND date = $2 AND status = 'active' LIMIT 1",
+      [d.id, hoy]
     );
-    void sessionRes;
+    if (yaActiva.rowCount === 0) {
+      const sessionRes = await pool.query(
+        "INSERT INTO driver_sessions (driver_id, km_initial, km_final, km_total, date, started_at, status) VALUES ($1,$2,NULL,NULL,$3,NOW(),'active') RETURNING id",
+        [d.id, kmInitial, hoy]
+      );
+      void sessionRes;
+    }
 
     // Si ya hay paradas de hoy (seed día 0 o simulación previa), no generar más
     if (yaHayParadasHoy) {

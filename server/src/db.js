@@ -84,18 +84,39 @@ const pgQueries = {
     return res.rows[0].id;
   },
   updateStop: async (pool, id, fields) => {
+    // Auditoría 2026-08-22 (G3): los nombres de columna NUNCA vienen del
+    // cliente; whitelist explícita para que un refactor futuro no convierta
+    // esto en SQL injection. Rechazar (no ignorar) lo desconocido.
+    const ALLOWED_STOP_COLS = new Set([
+      'stop_number', 'address', 'status', 'driver_id', 'items', 'signature',
+      'receiver_name', 'delivery_notes', 'session_id', 'expira_en',
+    ]);
     const set = []; const params = []; let idx = 1;
     for (const [k, v] of Object.entries(fields)) {
-      if (v !== undefined) { set.push(`${k} = $${idx++}`); params.push(v); }
+      if (v === undefined) continue;
+      if (!ALLOWED_STOP_COLS.has(k)) throw new Error(`updateStop: columna no permitida: ${k}`);
+      set.push(`${k} = $${idx++}`); params.push(v);
     }
     if (set.length === 0) return;
     params.push(id);
     await pool.query(`UPDATE stops SET ${set.join(', ')} WHERE id = $${idx}`, params);
   },
+  // Auditoría 2026-08-22 (G5): borrado multi-tabla en transacción. Sin ella,
+  // un fallo a mitad deja huérfanos (incidents borrados, stops vivos).
   deleteStop: async (pool, id) => {
-    await pool.query('DELETE FROM incidents WHERE stop_id = $1', [id]);
-    await pool.query('DELETE FROM pods WHERE stop_id = $1', [id]);
-    await pool.query('DELETE FROM stops WHERE id = $1', [id]);
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      await client.query('DELETE FROM incidents WHERE stop_id = $1', [id]);
+      await client.query('DELETE FROM pods WHERE stop_id = $1', [id]);
+      await client.query('DELETE FROM stops WHERE id = $1', [id]);
+      await client.query('COMMIT');
+    } catch (e) {
+      await client.query('ROLLBACK');
+      throw e;
+    } finally {
+      client.release();
+    }
   },
   clearStops: async (pool) => {
     await pool.query('DELETE FROM incidents');
@@ -177,6 +198,7 @@ const pgQueries = {
   // Limpieza de datos de visitante expirados (cron diario).
   // Borra drivers con expira_en < NOW() y sus paradas/incidencias/pods/sesiones.
   async cleanupExpired(pool) {
+    // Auditoría 2026-08-22 (G5): limpieza multi-tabla atómica.
     const expired = await pool.query(
       `SELECT id FROM drivers WHERE expira_en IS NOT NULL AND expira_en < NOW()`
     );
@@ -187,14 +209,24 @@ const pgQueries = {
       `SELECT id FROM stops WHERE driver_id IN (${placeholders})`, ids
     );
     const stopIds = stopRes.rows.map((r) => r.id);
-    if (stopIds.length > 0) {
-      const sp = stopIds.map((_, i) => `$${i + 1}`).join(',');
-      await pool.query(`DELETE FROM incidents WHERE stop_id IN (${sp})`, stopIds);
-      await pool.query(`DELETE FROM pods WHERE stop_id IN (${sp})`, stopIds);
-      await pool.query(`DELETE FROM stops WHERE id IN (${sp})`, stopIds);
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      if (stopIds.length > 0) {
+        const sp = stopIds.map((_, i) => `$${i + 1}`).join(',');
+        await client.query(`DELETE FROM incidents WHERE stop_id IN (${sp})`, stopIds);
+        await client.query(`DELETE FROM pods WHERE stop_id IN (${sp})`, stopIds);
+        await client.query(`DELETE FROM stops WHERE id IN (${sp})`, stopIds);
+      }
+      await client.query(`DELETE FROM driver_sessions WHERE driver_id IN (${placeholders})`, ids);
+      await client.query(`DELETE FROM drivers WHERE id IN (${placeholders})`, ids);
+      await client.query('COMMIT');
+    } catch (e) {
+      await client.query('ROLLBACK');
+      throw e;
+    } finally {
+      client.release();
     }
-    await pool.query(`DELETE FROM driver_sessions WHERE driver_id IN (${placeholders})`, ids);
-    await pool.query(`DELETE FROM drivers WHERE id IN (${placeholders})`, ids);
     return { deletedDrivers: ids.length, deletedStops: stopIds.length };
   },
 };
@@ -233,6 +265,15 @@ const jsonQueries = {
     db._save(); return id;
   },
   updateStop: (db, id, fields) => {
+    // Misma whitelist que el adapter PG (auditoría 2026-08-22): Object.assign
+    // con keys arbitrarias permite prototype pollution vía __proto__.
+    const ALLOWED_STOP_COLS = new Set([
+      'stop_number', 'address', 'status', 'driver_id', 'items', 'signature',
+      'receiver_name', 'delivery_notes', 'session_id', 'expira_en',
+    ]);
+    for (const k of Object.keys(fields)) {
+      if (!ALLOWED_STOP_COLS.has(k)) throw new Error(`updateStop: columna no permitida: ${k}`);
+    }
     const stop = db._store.stops.find((s) => s.id === id);
     if (stop) { Object.assign(stop, fields); db._save(); }
   },

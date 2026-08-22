@@ -53,7 +53,18 @@ export default function optimizationRouter(db) {
       else if (unlocated.length > 0) route = [...optimizeRoute(located, originCoords), ...unlocated];
       else route = optimizeRoute(located, originCoords);
 
-      for (let i = 0; i < route.length; i++) await q.updateStop(db, route[i].id, { stop_number: i + 1 });
+      // Blindaje demo (auditoría 2026-08-22, G4): las paradas de drivers
+      // is_demo son solo lectura — /optimize no puede renumerarlas. El
+      // ownership se resuelve SIEMPRE contra la BD (el body puede traer stops
+      // sin driver_id, como ya hace la validación IDOR de arriba).
+      const allStopsForDemo = await q.listStops(db);
+      const driversAll = await q.listDrivers(db);
+      const demoIds = new Set(driversAll.filter((d) => d.is_demo).map((d) => String(d.id)));
+      const mutableRoute = route.filter((s) => {
+        const real = allStopsForDemo.find((x) => String(x.id) === String(s.id));
+        return !real || !demoIds.has(String(real.driver_id));
+      });
+      for (let i = 0; i < mutableRoute.length; i++) await q.updateStop(db, mutableRoute[i].id, { stop_number: i + 1 });
       const updated = await q.listStops(db);
       // Un driver solo recibe en la respuesta SUS paradas (no las de la empresa).
       const visible = req.user.role === 'driver'
