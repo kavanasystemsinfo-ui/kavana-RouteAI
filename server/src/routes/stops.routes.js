@@ -53,6 +53,10 @@ export default function stopsRouter(db) {
       const { addresses, items, driver_id: bodyDriverId } = req.body;
       const driver_id = req.user.role === 'driver' ? req.user.driverId : (bodyDriverId || null);
       if (!addresses || !Array.isArray(addresses) || addresses.length === 0) return res.status(400).json({ error: 'Array de direcciones requerido' });
+      // P1 (auditoría 2026-08-23): tope de superficie de DoS — sin límite,
+      // un solo request podía crear decenas de miles de filas.
+      const MAX_BULK = 100;
+      if (addresses.length > MAX_BULK) return res.status(413).json({ error: `Máximo ${MAX_BULK} direcciones por request` });
       const created = [];
       let stopNumber = Date.now();
       const itemsJson = items && items.length > 0 ? JSON.stringify(items) : '';
@@ -139,7 +143,14 @@ export default function stopsRouter(db) {
       let photo_url = null;
       if (photo_data && photo_data.startsWith('data:image')) {
         const matches = photo_data.match(/^data:image\/(\w+);base64,(.+)$/);
+        // P1 (auditoría 2026-08-23): máx 5 MB de foto decodificada — evita
+        // que un request de 10 MB (límite express.json) se convierta en
+        // escrituras gigantes repetidas al volumen persistente.
+        const MAX_PHOTO_BYTES = 5 * 1024 * 1024;
         if (matches) {
+          if (matches[2].length * 0.75 > MAX_PHOTO_BYTES) {
+            return res.status(413).json({ error: 'Foto demasiado grande (máx 5 MB)' });
+          }
           const ext = matches[1] === 'jpeg' ? 'jpg' : matches[1];
           const buffer = Buffer.from(matches[2], 'base64');
           const incidentsDir = INCIDENTS_DIR;
