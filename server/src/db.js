@@ -197,8 +197,16 @@ const pgQueries = {
     return res.rows[0] || null;
   },
   startSession: async (pool, driverId, kmInitial) => {
+    // P0-3 (auditoría 2026-08-23): idempotencia real bajo concurrencia.
+    // La migración 005 crea un índice único parcial sobre driver_id WHERE
+    // status='active'; ON CONFLICT devuelve la sesión ya activa en vez de
+    // duplicarla (dos cron/requests simultáneos = una sola sesión).
     const res = await pool.query(
-      'INSERT INTO driver_sessions (driver_id, km_initial, status) VALUES ($1,$2,\'active\') RETURNING id',
+      `INSERT INTO driver_sessions (driver_id, km_initial, status)
+       VALUES ($1,$2,'active')
+       ON CONFLICT (driver_id) WHERE status = 'active'
+       DO UPDATE SET km_initial = EXCLUDED.km_initial
+       RETURNING id, (xmax = 0) AS inserted`,
       [driverId, kmInitial]
     );
     return res.rows[0].id;
@@ -378,6 +386,9 @@ const jsonQueries = {
   },
   startSession: (db, driverId, kmInitial) => {
     const sessions = db._store.sessions || [];
+    // P0-3: idempotente — si ya hay sesión activa del driver, se reutiliza.
+    const existing = sessions.find((s) => s.driver_id === driverId && s.status === 'active');
+    if (existing) return existing.id;
     const id = sessions.length + 1;
     sessions.push({ id, driver_id: driverId, km_initial: kmInitial, km_final: null, km_total: null, date: new Date().toISOString().slice(0,10), started_at: new Date().toISOString(), ended_at: null, status: 'active' });
     db._store.sessions = sessions; db._save(); return id;
