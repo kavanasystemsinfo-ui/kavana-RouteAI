@@ -17,7 +17,8 @@ test('addDriver y listDrivers', async () => {
   const drivers = await q.listDrivers(db);
   assert.equal(drivers.length, 1);
   assert.equal(drivers[0].name, 'Juan');
-  assert.equal(drivers[0].pin, '1234');
+  // P0-1 (2026-08-23): el PIN se almacena hasheado (scrypt), nunca plano.
+  assert.match(drivers[0].pin, /^scrypt\$/);
 });
 
 test('setDriverActive toggle', async () => {
@@ -31,14 +32,18 @@ test('setDriverActive toggle', async () => {
   assert.equal((await q.listDrivers(db))[0].active, true);
 });
 
-test('getDriverByPin encuentra', async () => {
+test('getDriverByPin encuentra (PIN hasheado, verificación con verifyPin)', async () => {
   const db = await freshDb();
   const q = db.queries;
   await q.addDriver(db, 'Luis', '9999');
-  const d = await q.getDriverByPin(db, '9999');
+  // Con PINs hasheados no se puede buscar por pin en SQL: se lista y se
+  // verifica con scrypt (mismo flujo que el login en auth.routes.js).
+  const { verifyPin } = await import('../src/pinHash.js');
+  const drivers = await q.listDrivers(db);
+  const d = drivers.find((x) => verifyPin('9999', x.pin));
   assert.ok(d);
   assert.equal(d.name, 'Luis');
-  const miss = await q.getDriverByPin(db, '0000');
+  const miss = drivers.find((x) => verifyPin('0000', x.pin));
   assert.equal(miss, undefined);
 });
 

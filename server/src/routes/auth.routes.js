@@ -2,6 +2,7 @@
 import express from 'express';
 import crypto from 'crypto';
 import { signToken, requireAuth } from '../auth.js';
+import { verifyPin } from '../pinHash.js';
 
 const loginLimits = new Map(); // ip → {count, resetAt}
 const accountLimits = new Map(); // cuenta intentada → {count, resetAt}
@@ -57,9 +58,13 @@ export default function authRouter(db) {
       if (!pin || !checkAccountLimit(`driver:${String(pin).trim()}`)) {
         return res.status(429).json({ error: 'Demasiados intentos para este código. Espera un minuto.' });
       }
-      // getDriverByPin filtra en BD; fallback al listado solo si no existe
+      // P0 (auditoría 2026-08-23): los PINs se guardan hasheados con scrypt,
+      // así que NO se puede filtrar por pin en SQL — se cargan los drivers
+      // activos y se verifica con scrypt+salt por fila (timing-safe).
+      // verifyPin acepta también PIN legacy plano durante la ventana de
+      // despliegue, antes de aplicar la migración 004.
       const drivers = await q.listDrivers(db);
-      const d = drivers.find((x) => x.active && pinsMatch(x.pin, pin));
+      const d = drivers.find((x) => x.active && verifyPin(pin, x.pin));
       if (!d) return res.status(401).json({ error: 'PIN incorrecto' });
       if (d.is_demo) return res.status(403).json({ error: 'Repartidor de la demo histórica: acceso restringido' });
       const token = signToken({ role: 'driver', driverId: d.id });

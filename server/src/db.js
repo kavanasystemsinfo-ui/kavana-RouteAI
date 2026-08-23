@@ -10,6 +10,7 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import pg from 'pg';
+import { hashPin } from './pinHash.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -168,10 +169,11 @@ const pgQueries = {
     await pool.query('INSERT INTO pods (stop_id, file_path) VALUES ($1,$2) ON CONFLICT (stop_id) DO UPDATE SET file_path = $2', [stopId, filePath]);
   },
   addDriver: async (pool, name, pin, phone = '', email = '', extra = {}) => {
+    // P0 (auditoría 2026-08-23): PIN nunca en texto plano — scrypt con salt.
     const res = await pool.query(
       `INSERT INTO drivers (name, pin, phone, email, is_demo, session_id, expira_en)
        VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING id`,
-      [name, String(pin), phone, email, !!extra.is_demo, extra.session_id || '', extra.expira_en || null]
+      [name, hashPin(pin), phone, email, !!extra.is_demo, extra.session_id || '', extra.expira_en || null]
     );
     return res.rows[0].id;
   },
@@ -354,8 +356,9 @@ const jsonQueries = {
   getSettings: (db) => ({ ...db._store.settings }),
   savePod: (db, stopId, filePath) => { db._store.pods[stopId] = filePath; db._save(); },
   addDriver: (db, name, pin, phone = '', email = '', extra = {}) => {
+    // P0 (auditoría 2026-08-23): PIN hasheado también en el store JSON.
     const id = (db._store.drivers.reduce((m, d) => Math.max(m, d.id || 0), 0)) + 1;
-    db._store.drivers.push({ id, name, pin: String(pin), phone, email: email || '', active: true, fuel_type: '', cost_per_km: 0,
+    db._store.drivers.push({ id, name, pin: hashPin(pin), phone, email: email || '', active: true, fuel_type: '', cost_per_km: 0,
       is_demo: !!extra.is_demo, session_id: extra.session_id || '', expira_en: extra.expira_en || null });
     db._save(); return id;
   },

@@ -7,6 +7,7 @@ import path from 'path';
 import { fileURLToPath, pathToFileURL } from 'url';
 import fs from 'fs';
 import { seedDrivers } from './seed.js';
+import { backfillPinHashes } from './pinBackfill.js';
 import { PODS_DIR, INCIDENTS_DIR } from './storage.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -99,6 +100,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
     }
     const seedResult = await seedDrivers(db);
     if (seedResult.created) console.log(`Seed: repartidor creado (id ${seedResult.id}, PIN ${process.env.DEFAULT_DRIVER_PIN || '5855'}).`);
+    await backfillPinHashes(db);
 
     const app = createServer(db);
 

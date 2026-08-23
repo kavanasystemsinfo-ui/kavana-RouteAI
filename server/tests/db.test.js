@@ -69,7 +69,8 @@ test('addDriver y listDrivers', async () => {
   const drivers = await q.listDrivers(db);
   assert.equal(drivers.length, 1);
   assert.equal(drivers[0].name, 'Juan');
-  assert.equal(drivers[0].pin, '1234');
+  // P0-1 (2026-08-23): el PIN se almacena hasheado (scrypt), nunca plano.
+  assert.match(drivers[0].pin, /^scrypt\$/);
 });
 
 test('savePod y driver CRUD', async () => {
