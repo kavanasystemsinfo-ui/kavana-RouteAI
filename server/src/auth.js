@@ -123,10 +123,12 @@ export function requireDriverOwnsStop(db) {
       return next();
     }
     try {
-      const stops = await db.queries.listStops(db);
-      const stop = stops.find((s) => String(s.id) === String(stopId));
-      if (!stop) return res.status(404).json({ error: 'Stop no encontrado' });
-      if (stop.driver_id !== req.user.driverId) {
+      // P1 (auditoría 2026-08-23): lookup por id en BD (getStopOwned) en vez
+      // de listar TODAS las paradas y hacer .find() en JS. Es una operación
+      // de autorización: debe ser O(índice), no O(n) con 12k filas.
+      const result = await db.queries.getStopOwned(db, stopId, req.user.driverId);
+      if (!result.found) return res.status(404).json({ error: 'Stop no encontrado' });
+      if (!result.owned) {
         return res.status(403).json({ error: 'Ese stop no pertenece a ese repartidor' });
       }
       next();

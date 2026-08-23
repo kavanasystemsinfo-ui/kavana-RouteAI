@@ -65,6 +65,13 @@ async function initPgSchema(pool) {
 }
 
 const pgQueries = {
+  // P1 (auditoría 2026-08-23): ownership check en BD, no full-scan en JS.
+  getStopOwned: async (pool, stopId, driverId) => {
+    const res = await pool.query('SELECT * FROM stops WHERE id = $1 LIMIT 1', [stopId]);
+    const stop = res.rows[0] || null;
+    if (!stop) return { found: false, owned: false, stop: null };
+    return { found: true, owned: String(stop.driver_id) === String(driverId), stop };
+  },
   listStops: async (pool, filters = {}) => {
     let sql = 'SELECT * FROM stops WHERE 1=1';
     const params = [];
@@ -294,6 +301,12 @@ function load(dbPath) {
 function persist(dbPath, store) { fs.writeFileSync(dbPath, JSON.stringify(store, null, 2)); }
 
 const jsonQueries = {
+  // P1 (auditoría 2026-08-23): ownership check sin recorrer todo el store dos veces.
+  getStopOwned: (db, stopId, driverId) => {
+    const stop = db._store.stops.find((s) => String(s.id) === String(stopId)) || null;
+    if (!stop) return { found: false, owned: false, stop: null };
+    return { found: true, owned: String(stop.driver_id) === String(driverId), stop };
+  },
   listStops: (db, filters = {}) => {
     let stops = db._store.stops.slice();
     if (filters.driver_id !== undefined) stops = stops.filter((s) => s.driver_id === filters.driver_id);
