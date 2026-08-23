@@ -80,8 +80,18 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
     try {
       db = await initDb();
     } catch (err) {
-      console.error('[db] Error conectando a PostgreSQL, usando JSON fallback:', err.message);
-      // Forzar JSON store: eliminar variables PG para que initDb no reintente
+      // Fail-fast en producción: sin BD real no arrancamos (un JSON en FS
+      // efímero divergiría de PostgreSQL al volver). JSON solo si el modo
+      // está pedido explícitamente (STORAGE_MODE=json) y NO es producción.
+      if (
+        process.env.NODE_ENV === 'production' ||
+        process.env.STORAGE_MODE !== 'json'
+      ) {
+        console.error('[db] Error conectando a PostgreSQL:', err.message);
+        console.error('[db] La API no arranca con fallback JSON. En desarrollo usa STORAGE_MODE=json para permitirlo.');
+        process.exit(1);
+      }
+      console.error('[db] Error conectando a PostgreSQL, usando JSON fallback (STORAGE_MODE=json):', err.message);
       delete process.env.PGHOST;
       delete process.env.DATABASE_URL;
       const fallbackPath = path.join(process.cwd(), 'routeai_fallback.json');
