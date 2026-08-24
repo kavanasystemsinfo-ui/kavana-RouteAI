@@ -4,7 +4,7 @@
 |---------|-------|
 | **Archivos de código** | ~45 |
 | **Líneas de código** | ~8.500 |
-| **Tests** | 100 (97 server + 3 client) | JWT, autorización/ownership, API REST, OCR, POD (PDF), optimización de rutas 2-opt, migraciones SQL, fail-fast de BD, panel de administración |
+| **Tests** | 102 (99 server + 3 client) | JWT, autorización/ownership, API REST, OCR, POD (PDF), optimización de rutas 2-opt, migraciones SQL, fail-fast de BD, panel de administración |
 | **Commits** | +70 |
 | **Lenguajes** | JavaScript, JSX, CSS, SQL, YAML |
 
