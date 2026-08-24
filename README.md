@@ -42,6 +42,8 @@ La optimización de rutas usa un **algoritmo 2-opt local**: determinista, instan
 - **Torre de control**: panel de la oficina para cargar rutas, verificar bultos y seguir entregas.
 - **OCR**: extrae dirección y bultos del albarán (Tesseract.js + pdftotext + addressCleaner).
 - **Despliegue**: backend en Fly.io (`kavana-routeai-api`), frontends en GitHub Pages.
+- **Observabilidad**: `/health` (liveness del proceso) y `/ready` (readiness con check real de PostgreSQL).
+- **DR**: backup diario de PostgreSQL con restore probado; plan completo en [`docs/dr-plan.md`](docs/dr-plan.md).
 
 ---
 
@@ -152,7 +154,7 @@ RouteAI incluye una **demo de empresa ficticia** para portfolio: 90 días de his
 - **Landing portfolio**: https://www.kavanasystems.com/routeai/
 - **App del repartidor**: https://routeai.kavanasystems.com/app/
 - **Torre de control**: https://routeai.kavanasystems.com/
-- **PIN oficina**: `0000`
+- **PIN oficina**: `9172`
 - **PIN repartidor demo**: `5855` (solo lectura, no inicia sesión; crea un repartidor propio desde la Torre de Control para probar la app)
 
 ---
