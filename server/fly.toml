@@ -24,7 +24,7 @@ primary_region = "cdg"
   # P2 (auditoría 2026-08-23): health check HTTP real — Fly reinicia la
   # máquina si /health deja de responder y no enruta tráfico a instancias
   # muertas (antes solo existía el endpoint, sin checks de infraestructura).
-  [http_service.checks]
+  [[http_service.checks]]
     interval = "30s"
     timeout = "10s"
     grace_period = "15s"
