@@ -11,4 +11,8 @@
 - **Sin secrets en el repositorio** — auditoría 2026-08-17: `JWT_SECRET` y `OFFICE_PIN` se rotaron y viven como secrets de Fly.io (y Render mientras esté el servicio). Detección automática de secretos en CI (gitleaks)
 - **Rate limiting**: logins de oficina y repartidor protegidos con límite de 10 intentos/min en producción (50 en dev); asistente técnico 25 preguntas/día por IP
 - **Fail-fast en producción**: la API no arranca sin `JWT_SECRET` real ni con `OFFICE_PIN` por defecto (`0000`)
-- **Limitaciones honestas del MVP:** los PINs se almacenan sin hash en la BD (prioridad: simplicidad en la demo); los JWT se almacenan en localStorage en el frontend (SPA cross-origin, sin BFF); documentado como simplificaciones deliberadas para la fase actual del producto
+- **PINs de drivers hasheados (scrypt)**: desde 2026-08-23 los PINs se guardan como `scrypt$salt$hash` en ambos adapters; backfill automático al arrancar convierte los legacy planos; login acepta ambas formas durante la transición
+- **Fallback JSON desactivado en producción**: si PostgreSQL falla, la API hace fail-fast (exit 1); el JSON store requiere `STORAGE_MODE=json` explícito en desarrollo
+- **Límites de entrada**: `/stops/bulk` máx 100 direcciones por request; fotos base64 máx 5 MB decodificados
+- **Backups y DR**: pg_dump diario a las 02:30 UTC con verificación anti-dump-vacío, retención 14 días, restore probado 2026-08-24 — plan completo en `docs/dr-plan.md`
+- **Limitaciones honestas del MVP:** JWT en localStorage (SPA cross-origin, sin BFF); sin 2FA ni rotación de tokens; documentado como simplificaciones deliberadas para la fase actual del producto
