@@ -1,9 +1,13 @@
 // Configuración central de la API del repartidor — Deuda 2 (auditoría 2026-08-24).
-// Sin fallback hardcodeado (antes apuntaba a Render): si falta VITE_API_BASE
-// el build falla de forma visible, nunca envía datos a un host muerto.
+// Sin fallback hardcodeado a hosts legacy: si falta VITE_API_BASE, el build
+// falla de forma visible, nunca envía datos a un host muerto. Excepción: en
+// entorno de TEST se usa un placeholder porque los tests mockean fetch y no
+// hacen red real.
 export const API_BASE = (import.meta.env.VITE_API_BASE)
   ? `${import.meta.env.VITE_API_BASE.replace(/\/$/, '')}/api`
-  : (() => { throw new Error('VITE_API_BASE no configurada en el build de la PWA'); })();
+  : import.meta.env.MODE === 'test'
+    ? '/api'
+    : (() => { throw new Error('VITE_API_BASE no configurada en el build de la PWA'); })();
 
 // Prefijo del header construido por partes para evitar literales escaneables.
 const AUTH_PREF = 'Bea'.concat('rer ');
