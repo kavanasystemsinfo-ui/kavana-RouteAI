@@ -23,7 +23,12 @@ const DEFAULT_DB = process.env.ROUTEAI_DB || path.join(process.cwd(), 'routeai.j
 function createPgPool() {
   // PGSSLMODE=disable permite pruebas locales sin SSL; por defecto SSL activo.
   const sslEnabled = String(process.env.PGSSLMODE || 'require').toLowerCase() !== 'disable';
-  const ssl = sslEnabled ? { rejectUnauthorized: false } : false;
+  // P1 (auditoría 2026-08-24): cifrar no es autenticar. Por defecto se
+  // verifica el certificado del servidor (rejectUnauthorized: true); el escape
+  // PGSSL_INSECURE=1 queda para entornos con CAs propias no confiables y debe
+  // ser una decisión explícita, nunca el default silencioso.
+  const insecure = String(process.env.PGSSL_INSECURE || '') === '1';
+  const ssl = sslEnabled ? { rejectUnauthorized: !insecure } : false;
   // Prioridad 1: Variables individuales PGHOST/PGUSER/PGPASSWORD
   const host = process.env.PGHOST;
   if (host) {

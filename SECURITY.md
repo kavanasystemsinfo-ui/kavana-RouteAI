@@ -14,5 +14,6 @@
 - **PINs de drivers hasheados (scrypt)**: desde 2026-08-23 los PINs se guardan como `scrypt$salt$hash` en ambos adapters; backfill automático al arrancar convierte los legacy planos; login acepta ambas formas durante la transición
 - **Fallback JSON desactivado en producción**: si PostgreSQL falla, la API hace fail-fast (exit 1); el JSON store requiere `STORAGE_MODE=json` explícito en desarrollo
 - **Límites de entrada**: `/stops/bulk` máx 100 direcciones por request; fotos base64 máx 5 MB decodificados
+- **TLS a PostgreSQL verificado**: desde 2026-08-24 el cliente `pg` valida el certificado del servidor (`rejectUnauthorized: true` por defecto); cifrar no es autenticar. Escape explícito con `PGSSL_INSECURE=1` (solo para CAs propias no confiables) y `PGSSLMODE=disable` para tests locales
 - **Backups y DR**: pg_dump diario a las 02:30 UTC con verificación anti-dump-vacío, retención 14 días, restore probado 2026-08-24 — plan completo en `docs/dr-plan.md`
 - **Limitaciones honestas del MVP:** JWT en localStorage (SPA cross-origin, sin BFF); sin 2FA ni rotación de tokens; documentado como simplificaciones deliberadas para la fase actual del producto
