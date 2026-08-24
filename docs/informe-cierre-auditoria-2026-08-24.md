@@ -84,12 +84,18 @@ cada fix tiene su commit con explicación, su test de regresión y su entrada
 en la tabla de estado de `docs/audits/`. La narrativa "detecto → corrijo →
 testeo → documento" es demostrable con el historial.
 
-## Pendiente (siguiente sesión)
+## Deudas aceptadas — CERRADAS (mismo día, commits cda1f9c + ba9005b)
 
-1. Deploy a Fly.io con los cambios (en curso al redactar este informe).
-2. Push a main + verificación CI verde.
-3. Auditoría landing `kavanasystems.com/routeai/` contra código (regla tuya:
-   cifras de tests, features).
-4. Opcional: login por `WHERE pin = $1` (requiere lookup por hash — el diseño
-   actual con salt único por driver necesita comparar en JS; alternativa:
-   columna pin_hash determinista para búsqueda).
+1. **Login sin full-scan**: nuevo `listActiveDrivers()` en ambos adapters
+   (filtro `active=TRUE` baja a SQL); el login ya no lista la tabla entera.
+   El lookup determinista por pin (`WHERE pin=$1`) NO es viable con scrypt
+   (salt única por driver): se documenta como decisión, no como deuda.
+2. **App.jsx monolítico**: extraídos `services/api.js` (API_BASE +
+   driverAuthFetch) y `hooks/useDriverSession.js` (login, logout, km,
+   jornada). App.jsx: 771 → 684 líneas, queda como capa de vista.
+3. Fix posterior: API_BASE usa placeholder `/api` solo en MODE=test para que
+   vitest importe sin red real; el build productivo sigue fallando visible
+   si falta VITE_API_BASE.
+
+Verificación final: 91/91 server + 3/3 client, CI y Deploy Combinado verdes,
+backend redesplegado en Fly (/health ok), landing ya publicada con 91 tests.
