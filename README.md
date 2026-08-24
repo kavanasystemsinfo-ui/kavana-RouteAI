@@ -73,7 +73,7 @@ La optimización de rutas usa un **algoritmo 2-opt local**: determinista, instan
 | Entrada de km con coma/punto (3 decimales) | ✅ |
 | Historial de entregas | ✅ |
 | API REST + RBAC (office/driver) | ✅ |
-| 75 tests (72 server + 3 client) | ✅ |
+| 94 tests (91 server + 3 client) | ✅ |
 | CI/CD (GitHub Actions) | ✅ |
 | Replanificación dinámica con IA | 🚧 |
 | Analítica avanzada | 🚧 |
@@ -97,7 +97,7 @@ La optimización de rutas usa un **algoritmo 2-opt local**: determinista, instan
 # Backend
 cd server
 npm install
-npm test        # 75 tests (72 server + 3 client)
+npm test        # 94 tests (91 server + 3 client)
 
 # App del repartidor (web)
 cd client
