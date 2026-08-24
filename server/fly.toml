@@ -21,6 +21,16 @@ primary_region = "cdg"
   min_machines_running = 0
   processes = ["app"]
 
+  # P2 (auditoría 2026-08-23): health check HTTP real — Fly reinicia la
+  # máquina si /health deja de responder y no enruta tráfico a instancias
+  # muertas (antes solo existía el endpoint, sin checks de infraestructura).
+  [http_service.checks]
+    interval = "30s"
+    timeout = "10s"
+    grace_period = "15s"
+    method = "get"
+    path = "/health"
+
 # Volumen persistente para PODs (PDFs) y fotos de incidencias en /app/data.
 # Creado con:
 #   flyctl volumes create routeai_data --app kavana-routeai-api --region cdg --size 1

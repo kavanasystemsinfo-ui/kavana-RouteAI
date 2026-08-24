@@ -32,7 +32,10 @@ COPY docs ./docs
 
 # Directorios de artefactos (PODs y fotos de incidencias). En Fly viven en un
 # volumen persistente montado en /app/data (DATA_DIR, ver fly.toml [mounts]).
-RUN mkdir -p /app/data/pods /app/data/incidents
+RUN mkdir -p /app/data/pods /app/data/incidents && chown -R node:node /app
+
+# P2 (auditoría 2026-08-23): el contenedor no corre como root.
+USER node
 
 EXPOSE 5001
 
