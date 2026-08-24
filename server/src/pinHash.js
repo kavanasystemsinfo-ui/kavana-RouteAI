@@ -1,4 +1,4 @@
-// Hash de PINs de repartidores (auditoría adversarial 2026-08-23, P0-1).
+// Hash de PINs de repartidores.
 // Antes los PINs se guardaban en texto plano (pin TEXT + String(pin)) y el
 // SHA-256 solo protegía la comparación. Ahora se almacena scrypt(N=16384)
 // con salt aleatorio por driver, formato `scrypt$<saltHex>$<hashHex>`.

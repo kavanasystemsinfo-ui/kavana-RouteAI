@@ -1,5 +1,4 @@
-// Backfill: convierte PINs legacy en texto plano a scrypt (P0-1 auditoría
-// 2026-08-23). Se ejecuta en cada arranque; es un no-op cuando todos los
+// Backfill: convierte PINs legacy en texto plano a scrypt. Se ejecuta en cada arranque; es un no-op cuando todos los
 // PINs ya están hasheados. verifyPin() acepta formato plano mientras tanto,
 // así que no hay ventana de bloqueo para repartidores.
 import { isHashedPin, hashPin } from './pinHash.js';

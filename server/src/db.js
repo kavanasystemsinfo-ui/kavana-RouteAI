@@ -23,7 +23,7 @@ const DEFAULT_DB = process.env.ROUTEAI_DB || path.join(process.cwd(), 'routeai.j
 function createPgPool() {
   // PGSSLMODE=disable permite pruebas locales sin SSL; por defecto SSL activo.
   const sslEnabled = String(process.env.PGSSLMODE || 'require').toLowerCase() !== 'disable';
-  // P1 (auditoría 2026-08-24): cifrar no es autenticar. Por defecto se
+  // P1: cifrar no es autenticar. Por defecto se
   // verifica el certificado del servidor (rejectUnauthorized: true); el escape
   // PGSSL_INSECURE=1 queda para entornos con CAs propias no confiables y debe
   // ser una decisión explícita, nunca el default silencioso.
@@ -57,7 +57,7 @@ function createPgPool() {
 async function initPgSchema(pool) {
   // El esquema vive en migraciones versionadas (carpeta migrations/): el
   // primer arranque aplica 001 y siguientes; arranques posteriores no hacen
-  // nada si ya están aplicadas (Fase 3, 2026-08-17).
+  // nada si ya están aplicadas.
   const { runMigrations } = await import('./migrations.js');
   await runMigrations(pool);
   // Default settings
@@ -90,7 +90,7 @@ const pgQueries = {
     if (filters.to) { params.push(filters.to); sql += ` AND created_at <= $${params.length}`; }
     sql += ' ORDER BY stop_number ASC';
     const res = await pool.query(sql, params);
-    // G6 (auditoría 2026-08-22): proyección ligera opcional para listados del
+    // G6: proyección ligera opcional para listados del
     // panel — items JSON puede pesar MB con 12k filas. El detalle completo
     // (con items) lo pide el endpoint de parada individual.
     if (filters.lite) {
@@ -107,7 +107,7 @@ const pgQueries = {
     return res.rows[0].id;
   },
   updateStop: async (pool, id, fields) => {
-    // Auditoría 2026-08-22 (G3): los nombres de columna NUNCA vienen del
+    // los nombres de columna NUNCA vienen del
     // cliente; whitelist explícita para que un refactor futuro no convierta
     // esto en SQL injection. Rechazar (no ignorar) lo desconocido.
     const ALLOWED_STOP_COLS = new Set([
@@ -124,7 +124,7 @@ const pgQueries = {
     params.push(id);
     await pool.query(`UPDATE stops SET ${set.join(', ')} WHERE id = $${idx}`, params);
   },
-  // Auditoría 2026-08-22 (G5): borrado multi-tabla en transacción. Sin ella,
+  // borrado multi-tabla en transacción. Sin ella,
   // un fallo a mitad deja huérfanos (incidents borrados, stops vivos).
   deleteStop: async (pool, id) => {
     const client = await pool.connect();
@@ -156,7 +156,7 @@ const pgQueries = {
     const res = await pool.query('SELECT * FROM incidents ORDER BY created_at DESC');
     return res.rows;
   },
-  // Auditoría 2026-08-22 (G6): sustituye a los 3 listados + find() O(n·m) de
+  // sustituye a los 3 listados + find() O(n·m) de
   // /incidents. Una sola query con JOINs y filtro from/to en SQL.
   listIncidentsJoined: async (pool, { from, to } = {}) => {
     let sql = `SELECT i.id, i.stop_id, i.type, i.notes, i.created_at,
@@ -185,7 +185,7 @@ const pgQueries = {
     await pool.query('INSERT INTO pods (stop_id, file_path) VALUES ($1,$2) ON CONFLICT (stop_id) DO UPDATE SET file_path = $2', [stopId, filePath]);
   },
   addDriver: async (pool, name, pin, phone = '', email = '', extra = {}) => {
-    // P0 (auditoría 2026-08-23): PIN nunca en texto plano — scrypt con salt.
+    // P0: PIN nunca en texto plano — scrypt con salt.
     const res = await pool.query(
       `INSERT INTO drivers (name, pin, phone, email, is_demo, session_id, expira_en)
        VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING id`,
@@ -200,7 +200,7 @@ const pgQueries = {
     const res = await pool.query('SELECT * FROM drivers ORDER BY id');
     return res.rows;
   },
-  // Deuda 1 (auditoría 2026-08-24): login sin cargar toda la tabla. scrypt
+  // Deuda 1: login sin cargar toda la tabla. scrypt
   // usa salt por driver, así que no hay lookup determinista por pin; el
   // filtro activo sí baja a SQL y el resto se verifica en JS (pocas filas).
   listActiveDrivers: async (pool) => {
@@ -216,7 +216,7 @@ const pgQueries = {
     return res.rows[0] || null;
   },
   startSession: async (pool, driverId, kmInitial) => {
-    // P0-3 (auditoría 2026-08-23): idempotencia real bajo concurrencia.
+    // P0-3: idempotencia real bajo concurrencia.
     // La migración 005 crea un índice único parcial sobre driver_id WHERE
     // status='active'; ON CONFLICT devuelve la sesión ya activa en vez de
     // duplicarla (dos cron/requests simultáneos = una sola sesión).
@@ -246,7 +246,7 @@ const pgQueries = {
     const res = await pool.query('SELECT * FROM driver_sessions WHERE driver_id=$1 ORDER BY started_at DESC', [driverId]);
     return res.rows;
   },
-  // Auditoría 2026-08-22 (G6): sustituye al bucle N+1 de /driver/sessions.
+  // sustituye al bucle N+1 de /driver/sessions.
   // Una sola query con JOIN + filtro from/to en SQL.
   listSessionsJoined: async (pool, { from, to } = {}) => {
     let sql = `SELECT s.*, d.name AS driver_name
@@ -261,7 +261,7 @@ const pgQueries = {
   // Limpieza de datos de visitante expirados (cron diario).
   // Borra drivers con expira_en < NOW() y sus paradas/incidencias/pods/sesiones.
   async cleanupExpired(pool) {
-    // Auditoría 2026-08-22 (G5): limpieza multi-tabla atómica.
+    // limpieza multi-tabla atómica.
     const expired = await pool.query(
       `SELECT id FROM drivers WHERE expira_en IS NOT NULL AND expira_en < NOW()`
     );
@@ -340,7 +340,7 @@ const jsonQueries = {
     db._save(); return id;
   },
   updateStop: (db, id, fields) => {
-    // Misma whitelist que el adapter PG (auditoría 2026-08-22): Object.assign
+    // Misma whitelist que el adapter PG: Object.assign
     // con keys arbitrarias permite prototype pollution vía __proto__.
     const ALLOWED_STOP_COLS = new Set([
       'stop_number', 'address', 'status', 'driver_id', 'items', 'signature',
@@ -390,7 +390,7 @@ const jsonQueries = {
   getSettings: (db) => ({ ...db._store.settings }),
   savePod: (db, stopId, filePath) => { db._store.pods[stopId] = filePath; db._save(); },
   addDriver: (db, name, pin, phone = '', email = '', extra = {}) => {
-    // P0 (auditoría 2026-08-23): PIN hasheado también en el store JSON.
+    // P0: PIN hasheado también en el store JSON.
     const id = (db._store.drivers.reduce((m, d) => Math.max(m, d.id || 0), 0)) + 1;
     db._store.drivers.push({ id, name, pin: hashPin(pin), phone, email: email || '', active: true, fuel_type: '', cost_per_km: 0,
       is_demo: !!extra.is_demo, session_id: extra.session_id || '', expira_en: extra.expira_en || null });
@@ -401,7 +401,7 @@ const jsonQueries = {
     if (d) { d.fuel_type = fuelType || ''; d.cost_per_km = costPerKm || 0; db._save(); }
   },
   listDrivers: (db) => db._store.drivers.slice(),
-  // Deuda 1 (auditoría 2026-08-24): login filtra activos en el adapter.
+  // Deuda 1: login filtra activos en el adapter.
   listActiveDrivers: (db) => db._store.drivers.filter((d) => d.active),
   setDriverActive: (db, id, active) => {
     const d = db._store.drivers.find((x) => x.id === id);

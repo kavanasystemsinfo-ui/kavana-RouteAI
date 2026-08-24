@@ -11,7 +11,7 @@ export default function optimizationRouter(db) {
   router.post('/optimize', requireAuth(['driver', 'office']), async (req, res) => {
     try {
       let { stops, origin } = req.body;
-      // IDOR auditoría 2026-08-17: un driver solo puede optimizar SUS paradas.
+      // un driver solo puede optimizar SUS paradas.
       // El body del cliente manda {id, address} sin driver_id, así que la
       // propiedad se valida contra la BD por id (nunca confiar en el body).
       if (req.user.role === 'driver') {
@@ -53,7 +53,7 @@ export default function optimizationRouter(db) {
       else if (unlocated.length > 0) route = [...optimizeRoute(located, originCoords), ...unlocated];
       else route = optimizeRoute(located, originCoords);
 
-      // Blindaje demo (auditoría 2026-08-22, G4): las paradas de drivers
+      // Blindaje demo: las paradas de drivers
       // is_demo son solo lectura — /optimize no puede renumerarlas. El
       // ownership se resuelve SIEMPRE contra la BD (el body puede traer stops
       // sin driver_id, como ya hace la validación IDOR de arriba).

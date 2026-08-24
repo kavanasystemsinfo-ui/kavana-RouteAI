@@ -22,7 +22,7 @@ export default function ocrRouter(db) {
       const fileTypeFlag = req.body.type || '';
       const isPdf = fileType === 'application/pdf' || fileTypeFlag === 'pdf';
       const isCsv = fileType === 'text/csv' || fileTypeFlag === 'csv';
-      // Fase 1 (auditoría 2026-08-17): NO usar req.file.originalname en rutas
+      // Fase 1: NO usar req.file.originalname en rutas
       // (path traversal vía nombres como ../../etc/x). Directorio temporal
       // exclusivo + nombre aleatorio; extensión de los magic bytes del contenido.
       const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'routeai-ocr-'));

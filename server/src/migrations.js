@@ -1,4 +1,4 @@
-// Migraciones SQL versionadas para KAVANA Route AI (Fase 3, 2026-08-17).
+// Migraciones SQL versionadas para KAVANA Route AI.
 //
 // Antes: todo el esquema vivía en un SCHEMA_SQL monolítico en db.js y se
 // aplicaba con CREATE TABLE IF NOT EXISTS en cada arranque. Eso funcionaba

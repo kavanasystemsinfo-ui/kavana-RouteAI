@@ -18,7 +18,7 @@ const ALLOWED = (process.env.CORS_ORIGINS || 'https://kavanasystemsinfo-ui.githu
 export function createServer(db) {
   const app = express();
 
-  // Fase 1 (auditoría 2026-08-17): Render está detrás de un proxy HTTPS, así
+  // Fase 1: Render está detrás de un proxy HTTPS, así
   // que confiamos en la cabecera del edge para derivar la IP real del cliente
   // (req.ip). Con trust proxy 1, X-Forwarded-For la fija Render, no el cliente.
   app.set('trust proxy', 1);
@@ -54,7 +54,7 @@ export function createServer(db) {
   if (!fs.existsSync(PODS_DIR)) fs.mkdirSync(PODS_DIR, { recursive: true });
   // /pods y /incidents requieren JWT (no se sirven públicamente) y ownership:
   // un driver solo puede leer archivos de SUS paradas. Los nombres de archivo
-  // son pod_<stopId>_<ts>.pdf / incident_<stopId>_<ts>.<ext> (auditoría 2026-08-17).
+  // son pod_<stopId>_<ts>.pdf / incident_<stopId>_<ts>.<ext>.
   const requirePodAccess = (db) => async (req, res, next) => {
     const token = extractToken(req);
     if (!token) return res.status(401).json({ error: 'No autenticado' });

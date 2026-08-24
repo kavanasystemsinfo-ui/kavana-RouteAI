@@ -16,7 +16,7 @@ export default function driversRouter(db) {
     try {
       const { name, pin, phone, email, session_id } = req.body;
       if (!name || !pin) return res.status(400).json({ error: 'name y pin requeridos' });
-      // Auditoría 2026-08-22 (G3): PIN de 4-6 dígitos obligatorio — sin esto
+      // PIN de 4-6 dígitos obligatorio — sin esto
       // un PIN de 1 dígito reduce el espacio de búsqueda a 10.
       if (!/^\d{4,6}$/.test(String(pin))) return res.status(400).json({ error: 'El PIN debe tener entre 4 y 6 dígitos' });
       const expiraEn = session_id ? new Date(Date.now() + 24 * 60 * 60 * 1000) : null;

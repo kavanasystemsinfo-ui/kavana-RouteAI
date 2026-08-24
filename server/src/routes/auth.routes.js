@@ -23,7 +23,7 @@ function checkRateLimit(req, res, next) {
   return next();
 }
 
-// Auditoría 2026-08-22 (G3): el rate limit por IP se evita rotando
+// el rate limit por IP se evita rotando
 // X-Forwarded-For. Segunda barrera por CUENTA intentada (PIN), inmune a la
 // rotación de IPs. Ventana deslizante por minuto con bloqueo temporal.
 const MAX_PER_ACCOUNT = process.env.NODE_ENV === 'production' ? 5 : 20;
@@ -51,16 +51,16 @@ export default function authRouter(db) {
   const q = db.queries;
   const router = express.Router();
 
-  // Driver login (rate limit por IP + por PIN intentado, auditoría 2026-08-22 G3)
+  // Driver login (rate limit por IP + por PIN intentado, 
   router.post('/drivers/login', checkRateLimit, async (req, res) => {
     try {
       const { pin } = req.body;
       if (!pin || !checkAccountLimit(`driver:${String(pin).trim()}`)) {
         return res.status(429).json({ error: 'Demasiados intentos para este código. Espera un minuto.' });
       }
-      // P0 (auditoría 2026-08-23): los PINs se guardan hasheados con scrypt,
+      // P0: los PINs se guardan hasheados con scrypt,
       // así que NO se puede filtrar por pin en SQL — se cargan SOLO los
-      // drivers activos (filtro en BD, deuda 1 cerrada 2026-08-24: antes se
+      // drivers activos (filtro en BD, antes se
       // listaba la tabla entera) y se verifica con scrypt+salt por fila
       // (timing-safe). verifyPin acepta también PIN legacy plano durante la
       // ventana de despliegue, antes de aplicar la migración 004.
@@ -75,7 +75,7 @@ export default function authRouter(db) {
 
   // Office login (con rate limiting). En desarrollo el PIN por defecto es 0000
   // (mismo criterio que el fallback de JWT_SECRET); en producción NO existe
-  // fallback: el PIN debe venir de OFFICE_PIN en el entorno (auditoría 2026-08-17).
+  // fallback: el PIN debe venir de OFFICE_PIN en el entorno.
   router.post('/office/login', checkRateLimit, (req, res) => {
     try {
       const { pin } = req.body;

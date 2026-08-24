@@ -4,7 +4,7 @@ import crypto from 'crypto';
 
 const DEV_SECRET = 'routeai-dev-secret-change-me';
 
-// Fase 1 (auditoría 2026-08-17): el fallback de desarrollo es inaceptable en
+// Fase 1: el fallback de desarrollo es inaceptable en
 // producción — cualquiera que conozca el repo podría firmar tokens válidos.
 function getSecret() {
   const secret = process.env.JWT_SECRET;
@@ -54,7 +54,7 @@ export function verifyToken(token, secret = getSecret()) {
   } catch (e) {
     throw new Error('Payload inválido');
   }
-  // Fase 1 (auditoría 2026-08-17): exigir campo exp — un token firmado sin exp
+  // Fase 1: exigir campo exp — un token firmado sin exp
   // nunca expira y convierte cualquier robo de token en acceso permanente.
   if (!payload.exp) throw new Error('Token sin expiración');
   if (Math.floor(Date.now() / 1000) > payload.exp) {
@@ -64,7 +64,7 @@ export function verifyToken(token, secret = getSecret()) {
 }
 
 // Extrae el token del header Authorization: Bearer <token>.
-// P1 (auditoría 2026-08-24): eliminado el soporte ?token= en query string.
+// P1: eliminado el soporte ?token= en query string.
 // Ningún cliente lo usa ya (los PODs se descargan con fetch + blob) y los
 // tokens en URLs se filtran por logs de proxy e historial del navegador.
 export function extractToken(req) {
@@ -125,7 +125,7 @@ export function requireDriverOwnsStop(db) {
       return next();
     }
     try {
-      // P1 (auditoría 2026-08-23): lookup por id en BD (getStopOwned) en vez
+      // P1: lookup por id en BD (getStopOwned) en vez
       // de listar TODAS las paradas y hacer .find() en JS. Es una operación
       // de autorización: debe ser O(índice), no O(n) con 12k filas.
       const result = await db.queries.getStopOwned(db, stopId, req.user.driverId);

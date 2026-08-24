@@ -30,7 +30,7 @@ export default function adminRouter(db) {
     } catch (error) { res.status(500).json({ error: error.message }); }
   });
 
-  // Admin sessions history — G6 (auditoría 2026-08-22): una sola query con
+  // Admin sessions history — G6: una sola query con
   // JOIN y filtro from/to en SQL (antes: 1 query por driver + filtro en JS).
   router.get('/driver/sessions', requireAuth(['office']), async (req, res) => {
     try {
@@ -42,7 +42,7 @@ export default function adminRouter(db) {
     } catch (error) { res.status(500).json({ error: error.message }); }
   });
 
-  // Incidents list — G6 (auditoría 2026-08-22): JOINs en SQL en vez de cargar
+  // Incidents list — G6: JOINs en SQL en vez de cargar
   // TODAS las incidencias + paradas + drivers y resolver con find() O(n·m).
   router.get('/incidents', requireAuth(['office']), async (req, res) => {
     try {

@@ -30,7 +30,7 @@ export default function stopsRouter(db) {
   };
 
   // Stops list — driver solo ve sus paradas; oficina puede filtrar por driver.
-  // G6 (auditoría 2026-08-22): ?lite=1 excluye items/session_id/expira_en del
+  // G6: ?lite=1 excluye items/session_id/expira_en del
   // payload (MB con 12k filas demo). La app del repartidor NO usa lite.
   router.get('/stops', requireAuth(['office', 'driver']), async (req, res) => {
     try {
@@ -53,7 +53,7 @@ export default function stopsRouter(db) {
       const { addresses, items, driver_id: bodyDriverId } = req.body;
       const driver_id = req.user.role === 'driver' ? req.user.driverId : (bodyDriverId || null);
       if (!addresses || !Array.isArray(addresses) || addresses.length === 0) return res.status(400).json({ error: 'Array de direcciones requerido' });
-      // P1 (auditoría 2026-08-23): tope de superficie de DoS — sin límite,
+      // P1: tope de superficie de DoS — sin límite,
       // un solo request podía crear decenas de miles de filas.
       const MAX_BULK = 100;
       if (addresses.length > MAX_BULK) return res.status(413).json({ error: `Máximo ${MAX_BULK} direcciones por request` });
@@ -120,7 +120,7 @@ export default function stopsRouter(db) {
   });
 
   // Clear all stops (visitante, no demo) — SOLO oficina: un driver no puede
-  // vaciar la ruta de la empresa (IDOR detectado en auditoría 2026-08-17).
+  // vaciar la ruta de la empresa ().
   router.delete('/stops', requireAuth(['office']), async (req, res) => {
     try {
       const stops = await q.listStops(db);
@@ -132,7 +132,7 @@ export default function stopsRouter(db) {
     } catch (error) { res.status(500).json({ error: error.message }); }
   });
 
-  // Incident report — SOLO sobre paradas propias (IDOR auditoría 2026-08-17):
+  // Incident report — SOLO sobre paradas propias ():
   // requireDriverOwnsStop evita que un driver marque paradas ajenas.
   router.post('/stops/:id/incident', requireAuth(['driver']), requireDriverOwnsStop(db), async (req, res) => {
     try {
@@ -143,7 +143,7 @@ export default function stopsRouter(db) {
       let photo_url = null;
       if (photo_data && photo_data.startsWith('data:image')) {
         const matches = photo_data.match(/^data:image\/(\w+);base64,(.+)$/);
-        // P1 (auditoría 2026-08-23): máx 5 MB de foto decodificada — evita
+        // P1: máx 5 MB de foto decodificada — evita
         // que un request de 10 MB (límite express.json) se convierta en
         // escrituras gigantes repetidas al volumen persistente.
         const MAX_PHOTO_BYTES = 5 * 1024 * 1024;
@@ -166,8 +166,8 @@ export default function stopsRouter(db) {
     } catch (error) { res.status(500).json({ error: error.message }); }
   });
 
-  // POD URL — SOLO la oficina o el driver dueño de la parada (IDOR auditoría
-  // 2026-08-17): la firma del receptor es dato sensible de otro repartidor.
+  // POD URL — SOLO la oficina o el driver dueño de la parada: la firma del
+  // receptor es dato sensible de otro repartidor.
   router.get('/stops/:id/pod', requireAuth(['office', 'driver']), requireDriverOwnsStop(db), async (req, res) => {
     try {
       const podsDir = PODS_DIR;
