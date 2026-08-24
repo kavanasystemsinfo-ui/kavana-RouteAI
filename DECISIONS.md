@@ -268,7 +268,7 @@ Selector de periodo arriba de la Torre de Control (Mes actual por defecto, Mes a
 
 ## Estado actual del proyecto (agosto 2026)
 
-**Tests**: 94 (91 server + 3 client). **Endpoints**: 25. **ADRs**: 7.
+**Tests**: 101 (98 server + 3 client). **Endpoints**: 25. **ADRs**: 7.
 
 **Refactor completado (P1-P7):**
 - Seguridad: autorización por ownership JWT, rate limiting de login, endpoints protegidos
