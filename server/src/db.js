@@ -70,7 +70,11 @@ async function initPgSchema(pool) {
 }
 
 const pgQueries = {
-  // P1 (auditoría 2026-08-23): ownership check en BD, no full-scan en JS.
+  // Readiness check: SELECT 1 barato para /ready.
+  ping: async (pool) => {
+    await pool.query('SELECT 1');
+  },
+  // Ownership check en BD, no full-scan en JS.
   getStopOwned: async (pool, stopId, driverId) => {
     const res = await pool.query('SELECT * FROM stops WHERE id = $1 LIMIT 1', [stopId]);
     const stop = res.rows[0] || null;
@@ -309,7 +313,8 @@ function load(dbPath) {
 function persist(dbPath, store) { fs.writeFileSync(dbPath, JSON.stringify(store, null, 2)); }
 
 const jsonQueries = {
-  // P1 (auditoría 2026-08-23): ownership check sin recorrer todo el store dos veces.
+  ping: async () => {},
+  // Ownership check sin recorrer todo el store dos veces.
   getStopOwned: (db, stopId, driverId) => {
     const stop = db._store.stops.find((s) => String(s.id) === String(stopId)) || null;
     if (!stop) return { found: false, owned: false, stop: null };

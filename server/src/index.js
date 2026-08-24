@@ -37,8 +37,19 @@ export function createServer(db) {
   });
 
   app.use(express.json({ limit: '10mb' }));
-  // Health check para Render (sin DB, responde inmediato)
+  // Liveness: proceso vivo, no toca dependencias (barato para el orquestador).
   app.get('/health', (req, res) => res.json({ status: 'ok' }));
+  // Readiness: solo tráfico real si la BD responde. Un SELECT con timeout
+  // evita colgar el check si la conexión está a medias.
+  app.get('/ready', async (req, res) => {
+    try {
+      const timeout = new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), 2000));
+      await Promise.race([db.queries.ping(db), timeout]);
+      res.json({ status: 'ready' });
+    } catch {
+      res.status(503).json({ status: 'not-ready', error: 'base de datos no disponible' });
+    }
+  });
   app.use('/api', apiRouter(db));
   if (!fs.existsSync(PODS_DIR)) fs.mkdirSync(PODS_DIR, { recursive: true });
   // /pods y /incidents requieren JWT (no se sirven públicamente) y ownership:
@@ -53,9 +64,8 @@ export function createServer(db) {
       const m = /(pod|incident)_(\d+)_/.exec(path.basename(req.path));
       if (!m) return res.status(403).json({ error: 'Archivo no reconocido' });
       const stopId = Number(m[2]);
-      // P1 (auditoría 2026-08-24): lookup por PK en BD (getStopOwned), no
-      // listStops() completo. Con ~12k paradas el full-scan por descarga de
-      // POD era la deuda de rendimiento más clara.
+      // Lookup por PK en BD: con ~12k paradas un full-scan por descarga
+      // sería una deuda de rendimiento inasumible.
       const { found, owned, stop } = await db.queries.getStopOwned(db, stopId, payload.driverId);
       if (!found) return res.status(404).json({ error: 'Parada no encontrada' });
       if (!owned) {
