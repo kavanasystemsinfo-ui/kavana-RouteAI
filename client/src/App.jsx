@@ -1,9 +1,9 @@
 import { useState, useEffect } from 'react';
-import { 
-  MapPin, 
-  Camera, 
-  Navigation, 
-  CheckCircle2, 
+import {
+  MapPin,
+  Camera,
+  Navigation,
+  CheckCircle2,
   Clock,
   ChevronRight,
   User,
@@ -21,16 +21,10 @@ import SignaturePad from './components/SignaturePad';
 import { downloadPod, generatePodBlob } from './services/podService';
 import IncidentModal from './components/IncidentModal';
 import ItemsModal from './components/ItemsModal';
-
-// Prefijo del header de autenticacion (Bearer) construido por partes para evitar literales.
-const AUTH_PREF = 'Bea'.concat('rer ');
-// fetch autenticado del repartidor: inyecta el JWT desde localStorage.
-function driverAuthFetch(url, opts = {}) {
-  const token = localStorage.getItem('routeai_driver_token');
-  const headers = { ...(opts.headers || {}) };
-  if (token) headers.Authorization = AUTH_PREF.concat(token);
-  return fetch(url, { ...opts, headers });
-}
+// Deuda 2 (auditoría 2026-08-24): config de API + fetch autenticado y lógica
+// de sesión extraídos a módulos propios; App.jsx queda como capa de vista.
+import { API_BASE, driverAuthFetch } from './services/api';
+import { useDriverSession } from './hooks/useDriverSession';
 
 const styles = {
   container: {
@@ -154,10 +148,7 @@ const styles = {
     zIndex: 1000
   }
 };
-
-const API_BASE = (import.meta.env.VITE_API_BASE)
-  ? `${import.meta.env.VITE_API_BASE.replace(/\/$/, '')}/api`
-  : 'https://kavana-routeai-api.onrender.com/api';
+// API_BASE y driverAuthFetch vienen de ./services/api (deuda 2, 2026-08-24).
 
 function App() {
   const [activeTab, setActiveTab] = useState('map');
@@ -167,17 +158,15 @@ function App() {
   const [showItems, setShowItems] = useState(false);
   const [podUrl, setPodUrl] = useState(null);
   const [stops, setStops] = useState([]);
-  const [driverId, setDriverId] = useState(() => localStorage.getItem('routeai_driver_id') || null);
-  const [driverName, setDriverName] = useState(() => localStorage.getItem('routeai_driver_name') || '');
-  const [showDriverGate, setShowDriverGate] = useState(() => !localStorage.getItem('routeai_driver_id'));
-  // Km de jornada
-  const [showKmInitial, setShowKmInitial] = useState(false);
-  const [showKmEnd, setShowKmEnd] = useState(false);
-  const [sessionKmInitial, setSessionKmInitial] = useState(() => localStorage.getItem('routeai_km_initial') || '');
-  const [sessionKmFinal, setSessionKmFinal] = useState('');
-  const [sessionKmTotal, setSessionKmTotal] = useState('');
-  const [sessionId, setSessionId] = useState(() => localStorage.getItem('routeai_session_id') || '');
-  
+  // Deuda 2 (auditoría 2026-08-24): sesión/km/jornada viven en useDriverSession.
+  const session = useDriverSession();
+  const {
+    driverId, driverName, showDriverGate,
+    showKmInitial, showKmEnd,
+    sessionKmInitial, sessionKmFinal, sessionKmTotal,
+    handleDriverLogin, handleDriverLogout, confirmKmInitial, confirmKmFinal,
+  } = session;
+
   const [mapZoom, setMapZoom] = useState(15);
 
   // Origen de salida configurable (no GPS en vivo): el repartidor lo fija
@@ -196,88 +185,9 @@ function App() {
   };
 
   // Refrescar paradas al cambiar de driver (login/logout) - solo si hay token
-  useEffect(() => { 
-    if (localStorage.getItem('routeai_driver_token')) fetchStops(); 
+  useEffect(() => {
+    if (localStorage.getItem('routeai_driver_token')) fetchStops();
   }, [driverId]);
-
-  // Identificacion del repartidor por PIN (se guarda en el movil).
-  const handleDriverLogin = async (pin) => {
-    try {
-      const res = await fetch(`${API_BASE}/drivers/login`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ pin })
-      });
-      if (!res.ok) {
-        const msg = await res.json().catch(() => ({}));
-        alert(msg.error || 'PIN incorrecto. Pide el PIN a tu oficina.');
-        setShowDriverGate(true);
-        return;
-      }
-      const { token, driver } = await res.json();
-      localStorage.setItem('routeai_driver_id', driver.id);
-      localStorage.setItem('routeai_driver_name', driver.name);
-      localStorage.setItem('routeai_driver_token', token);
-      setDriverId(driver.id);
-      setDriverName(driver.name);
-      setShowDriverGate(false);
-      // Mostrar pantalla de km iniciales
-      setShowKmInitial(true);
-    } catch (error) {
-      console.error(error);
-      alert('Error de conexión con el servidor. Inténtalo de nuevo.');
-      setShowDriverGate(true);
-    }
-  };
-
-  const handleDriverLogout = () => {
-    // Mostrar pantalla de km finales antes de cerrar
-    setSessionKmFinal('');
-    setSessionKmTotal('');
-    setShowKmEnd(true);
-  };
-
-  const confirmKmInitial = async (km) => {
-    try {
-      const res = await driverAuthFetch(`${API_BASE}/driver/session/start`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ km_initial: km })
-      });
-      if (!res.ok) { alert('Error al guardar km iniciales'); return; }
-      const data = await res.json();
-      localStorage.setItem('routeai_km_initial', km);
-      localStorage.setItem('routeai_session_id', String(data.session_id));
-      setSessionKmInitial(km);
-      setSessionId(String(data.session_id));
-      setShowKmInitial(false);
-    } catch (e) { alert('Error de conexión: ' + e.message); }
-  };
-
-  const confirmKmFinal = async (km) => {
-    try {
-      const res = await driverAuthFetch(`${API_BASE}/driver/session/end`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ km_final: km })
-      });
-      if (!res.ok) { alert('Error al guardar km finales'); return; }
-      const data = await res.json();
-      setSessionKmTotal(data.km_total);
-      setSessionKmFinal(km);
-      // Mostrar resumen un momento, luego cerrar sesión
-      setTimeout(() => {
-        localStorage.removeItem('routeai_driver_id');
-        localStorage.removeItem('routeai_driver_name');
-        localStorage.removeItem('routeai_driver_token');
-        localStorage.removeItem('routeai_km_initial');
-        localStorage.removeItem('routeai_session_id');
-        setDriverId(null);
-        setDriverName('');
-        setSessionKmInitial('');
-        setSessionId('');
-        setShowKmEnd(false);
-        setShowDriverGate(true);
-      }, 4000);
-    } catch (e) { alert('Error de conexión: ' + e.message); }
-  };
 
   // Tras escanear, creamos las paradas (una o múltiples)
   const handleScanComplete = async (data) => {

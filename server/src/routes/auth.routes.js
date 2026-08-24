@@ -59,12 +59,13 @@ export default function authRouter(db) {
         return res.status(429).json({ error: 'Demasiados intentos para este código. Espera un minuto.' });
       }
       // P0 (auditoría 2026-08-23): los PINs se guardan hasheados con scrypt,
-      // así que NO se puede filtrar por pin en SQL — se cargan los drivers
-      // activos y se verifica con scrypt+salt por fila (timing-safe).
-      // verifyPin acepta también PIN legacy plano durante la ventana de
-      // despliegue, antes de aplicar la migración 004.
-      const drivers = await q.listDrivers(db);
-      const d = drivers.find((x) => x.active && verifyPin(pin, x.pin));
+      // así que NO se puede filtrar por pin en SQL — se cargan SOLO los
+      // drivers activos (filtro en BD, deuda 1 cerrada 2026-08-24: antes se
+      // listaba la tabla entera) y se verifica con scrypt+salt por fila
+      // (timing-safe). verifyPin acepta también PIN legacy plano durante la
+      // ventana de despliegue, antes de aplicar la migración 004.
+      const drivers = await q.listActiveDrivers(db);
+      const d = drivers.find((x) => verifyPin(pin, x.pin));
       if (!d) return res.status(401).json({ error: 'PIN incorrecto' });
       if (d.is_demo) return res.status(403).json({ error: 'Repartidor de la demo histórica: acceso restringido' });
       const token = signToken({ role: 'driver', driverId: d.id });

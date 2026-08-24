@@ -191,6 +191,13 @@ const pgQueries = {
     const res = await pool.query('SELECT * FROM drivers ORDER BY id');
     return res.rows;
   },
+  // Deuda 1 (auditoría 2026-08-24): login sin cargar toda la tabla. scrypt
+  // usa salt por driver, así que no hay lookup determinista por pin; el
+  // filtro activo sí baja a SQL y el resto se verifica en JS (pocas filas).
+  listActiveDrivers: async (pool) => {
+    const res = await pool.query('SELECT * FROM drivers WHERE active = TRUE ORDER BY id');
+    return res.rows;
+  },
   getDriverByPin: async (pool, pin) => {
     const res = await pool.query('SELECT * FROM drivers WHERE pin = $1 LIMIT 1', [String(pin)]);
     return res.rows[0] || null;
@@ -388,6 +395,8 @@ const jsonQueries = {
     if (d) { d.fuel_type = fuelType || ''; d.cost_per_km = costPerKm || 0; db._save(); }
   },
   listDrivers: (db) => db._store.drivers.slice(),
+  // Deuda 1 (auditoría 2026-08-24): login filtra activos en el adapter.
+  listActiveDrivers: (db) => db._store.drivers.filter((d) => d.active),
   getDriverByPin: (db, pin) => db._store.drivers.find((d) => d.pin === String(pin)),
   setDriverActive: (db, id, active) => {
     const d = db._store.drivers.find((x) => x.id === id);
