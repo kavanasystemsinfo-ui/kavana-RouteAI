@@ -203,10 +203,6 @@ const pgQueries = {
     const res = await pool.query('SELECT * FROM drivers WHERE active = TRUE ORDER BY id');
     return res.rows;
   },
-  getDriverByPin: async (pool, pin) => {
-    const res = await pool.query('SELECT * FROM drivers WHERE pin = $1 LIMIT 1', [String(pin)]);
-    return res.rows[0] || null;
-  },
   setDriverActive: async (pool, id, active) => {
     await pool.query('UPDATE drivers SET active = $1 WHERE id = $2', [active, id]);
   },
@@ -402,7 +398,6 @@ const jsonQueries = {
   listDrivers: (db) => db._store.drivers.slice(),
   // Deuda 1 (auditoría 2026-08-24): login filtra activos en el adapter.
   listActiveDrivers: (db) => db._store.drivers.filter((d) => d.active),
-  getDriverByPin: (db, pin) => db._store.drivers.find((d) => d.pin === String(pin)),
   setDriverActive: (db, id, active) => {
     const d = db._store.drivers.find((x) => x.id === id);
     if (d) { d.active = active; db._save(); }

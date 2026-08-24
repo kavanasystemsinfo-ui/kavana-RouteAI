@@ -131,7 +131,7 @@ Sin este secret, los frontends apuntan a la API antigua. Cambiarlo requiere un n
 
 ### Tests
 ```bash
-cd server && npm test    # 98 tests (todos async/await compatibles PG y JSON)
+cd server && npm test    # 97 tests (todos async/await compatibles PG y JSON)
 cd client && npm test    # 3 tests
 cd client && npm run build  # Build verificado
 ```

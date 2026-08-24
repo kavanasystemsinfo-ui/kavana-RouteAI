@@ -32,21 +32,6 @@ test('setDriverActive toggle', async () => {
   assert.equal((await q.listDrivers(db))[0].active, true);
 });
 
-test('getDriverByPin encuentra (PIN hasheado, verificación con verifyPin)', async () => {
-  const db = await freshDb();
-  const q = db.queries;
-  await q.addDriver(db, 'Luis', '9999');
-  // Con PINs hasheados no se puede buscar por pin en SQL: se lista y se
-  // verifica con scrypt (mismo flujo que el login en auth.routes.js).
-  const { verifyPin } = await import('../src/pinHash.js');
-  const drivers = await q.listDrivers(db);
-  const d = drivers.find((x) => verifyPin('9999', x.pin));
-  assert.ok(d);
-  assert.equal(d.name, 'Luis');
-  const miss = drivers.find((x) => verifyPin('0000', x.pin));
-  assert.equal(miss, undefined);
-});
-
 test('addStop enlaza driver_id y filtros por repartidor', async () => {
   const db = await freshDb();
   const q = db.queries;

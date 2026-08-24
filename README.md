@@ -35,7 +35,7 @@ La optimización de rutas usa un **algoritmo 2-opt local**: determinista, instan
               (Tesseract)     2-opt         firma digital
                     │
                     ▼
-        PostgreSQL (Neon) + JSON fallback
+        PostgreSQL (Neon) — fail-fast si cae en producción
 ```
 
 - **App del repartidor**: web responsive pensada para móvil (icono en pantalla de inicio). El ADR-001 evaluó PWA/nativa; hoy no hay service worker, es una SPA web.
@@ -73,7 +73,7 @@ La optimización de rutas usa un **algoritmo 2-opt local**: determinista, instan
 | Entrada de km con coma/punto (3 decimales) | ✅ |
 | Historial de entregas | ✅ |
 | API REST + RBAC (office/driver) | ✅ |
-| 101 tests (98 server + 3 client) | ✅ |
+| 100 tests (97 server + 3 client) | ✅ |
 | CI/CD (GitHub Actions) | ✅ |
 | Replanificación dinámica con IA | 🚧 |
 | Analítica avanzada | 🚧 |
@@ -97,7 +97,7 @@ La optimización de rutas usa un **algoritmo 2-opt local**: determinista, instan
 # Backend
 cd server
 npm install
-npm test        # 101 tests (98 server + 3 client)
+npm test        # 100 tests (97 server + 3 client)
 
 # App del repartidor (web)
 cd client
