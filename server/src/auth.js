@@ -63,14 +63,16 @@ export function verifyToken(token, secret = getSecret()) {
   return payload;
 }
 
-// Extrae el token del header Authorization: Bearer *** del query ?token= (para descargas).
+// Extrae el token del header Authorization: Bearer <token>.
+// P1 (auditoría 2026-08-24): eliminado el soporte ?token= en query string.
+// Ningún cliente lo usa ya (los PODs se descargan con fetch + blob) y los
+// tokens en URLs se filtran por logs de proxy e historial del navegador.
 export function extractToken(req) {
   const auth = req.headers.authorization || req.headers.Authorization;
   if (auth) {
     const m = /^Bearer\s+(.+)$/i.exec(auth.trim());
     if (m) return m[1];
   }
-  if (req.query && req.query.token) return String(req.query.token);
   return null;
 }
 

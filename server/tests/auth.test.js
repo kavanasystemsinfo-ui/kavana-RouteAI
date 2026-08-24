@@ -24,3 +24,10 @@ test('extractToken lee Bearer header', () => {
   const req = { headers: { authorization: 'Bearer abc.def.ghi' } };
   assert.equal(extractToken(req), 'abc.def.ghi');
 });
+
+test('extractToken IGNORA ?token= en query string (eliminado 2026-08-24)', () => {
+  // P1 auditoría 2026-08-24: los tokens en URLs se filtran por logs de proxy
+  // e historial. El soporte se eliminó; la query no debe autenticar nunca.
+  const req = { headers: {}, query: { token: 'abc.def.ghi' } };
+  assert.equal(extractToken(req), null, '?token= ya no autentica');
+});
