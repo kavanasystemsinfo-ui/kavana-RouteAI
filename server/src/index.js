@@ -53,10 +53,12 @@ export function createServer(db) {
       const m = /(pod|incident)_(\d+)_/.exec(path.basename(req.path));
       if (!m) return res.status(403).json({ error: 'Archivo no reconocido' });
       const stopId = Number(m[2]);
-      const allStops = await db.queries.listStops(db);
-      const stop = allStops.find((s) => String(s.id) === String(stopId));
-      if (!stop) return res.status(404).json({ error: 'Parada no encontrada' });
-      if (String(stop.driver_id) !== String(payload.driverId)) {
+      // P1 (auditoría 2026-08-24): lookup por PK en BD (getStopOwned), no
+      // listStops() completo. Con ~12k paradas el full-scan por descarga de
+      // POD era la deuda de rendimiento más clara.
+      const { found, owned, stop } = await db.queries.getStopOwned(db, stopId, payload.driverId);
+      if (!found) return res.status(404).json({ error: 'Parada no encontrada' });
+      if (!owned) {
         return res.status(403).json({ error: 'Ese archivo no pertenece a tu ruta' });
       }
       next();
