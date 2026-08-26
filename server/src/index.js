@@ -13,7 +13,7 @@ import { PODS_DIR, INCIDENTS_DIR } from './storage.js';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const ALLOWED = (process.env.CORS_ORIGINS || 'https://kavanasystemsinfo-ui.github.io,https://routeai.kavanasystems.com,https://www.routeai.kavanasystems.com').split(',').map((s) => s.trim());
+const ALLOWED = (process.env.CORS_ORIGINS || 'https://kavanasystemsinfo-ui.github.io,https://routeai.kavanasystems.com,https://www.routeai.kavanasystems.com,https://www.kavanasystems.com').split(',').map((s) => s.trim());
 
 export function createServer(db) {
   const app = express();
