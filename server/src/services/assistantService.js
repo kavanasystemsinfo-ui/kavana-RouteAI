@@ -13,8 +13,8 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(__dirname, '../../..');
 
 // Modelos OpenRouter: gratuito como principal, mismo para preguntas complejas.
-const MODELO_FREE = process.env.ASSISTANT_MODEL_FREE || 'poolside/laguna-s-2.1:free';
-const MODELO_PRO = process.env.ASSISTANT_MODEL_PRO || 'poolside/laguna-s-2.1:free';
+const MODELO_FREE = process.env.ASSISTANT_MODEL_FREE || 'nvidia/nemotron-3-super-120b-a12b:free';
+const MODELO_PRO = process.env.ASSISTANT_MODEL_PRO || 'nvidia/nemotron-3-super-120b-a12b:free';
 
 // ---------------------------------------------------------------- indexado
 
