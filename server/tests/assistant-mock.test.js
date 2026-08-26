@@ -9,6 +9,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createServer } from '../src/index.js';
 import { initDb } from '../src/db.js';
+import { cargarCorpus } from '../src/services/assistantService.js';
 import os from 'os';
 import path from 'path';
 
@@ -76,4 +77,9 @@ test('POST /assistant con provider caído devuelve 500 y no inventa', async () =
     delete process.env.OPENROUTER_API_KEY;
     server.close();
   }
+});
+
+test('el corpus no indexa plantillas', () => {
+  const fuentes = new Set(cargarCorpus().map((c) => c.fuente));
+  assert.ok(![...fuentes].some((f) => f.toLowerCase().includes('template')));
 });
