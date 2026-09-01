@@ -48,11 +48,23 @@ export function cargarCorpus() {
   return chunks;
 }
 
+// Contexto base SIEMPRE presente: la visión general del README. Garantiza que
+// preguntas generales ("qué es", "qué tecnologías usa", "cómo funciona") tengan
+// respuesta aunque el TF-IDF no encuentre coincidencia literal (sinónimos,
+// plural/singular, tildes). El system prompt sigue siendo el guardarraíl de
+// honestidad: si la respuesta no está ni aquí ni en los chunks, el LLM remite a Jorge.
+function leerContextoBase() {
+  const abs = path.join(REPO_ROOT, 'README.md');
+  if (!fs.existsSync(abs)) return '';
+  return fs.readFileSync(abs, 'utf8').slice(0, 8000);
+}
+
 // ------------------------------------------------------------ TF-IDF simple
 
 function tokenizar(texto) {
   return texto.toLowerCase()
-    .replace(/[^a-záéíóúñü0-9]/g, ' ')
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '') // quitar tildes: "tecnologías" == "tecnologias"
+    .replace(/[^a-z0-9]/g, ' ')
     .split(/\s+/)
     .filter((w) => w.length > 2 && !STOPWORDS.has(w));
 }
@@ -60,8 +72,7 @@ function tokenizar(texto) {
 const STOPWORDS = new Set(`
   para por con los las el la un una que como del al se su sus en de y o a
   este esta estos estas eso esa su donde cuando cual cuales sobre entre
-  mediante desde hasta tiene tienen hacer hace sido ser está estan fue eran
-  route ai kavana sistema aplicacion app proyecto datos demuestra mostrar
+  desde hasta tienen tienen hacer hace fue ser está estan fueron eran
 `.trim().split(/\s+/));
 
 function construirIndice(chunks) {
@@ -120,8 +131,11 @@ function esCompleja(pregunta) {
 
 // ------------------------------------------------------------ LLM (OpenRouter)
 
+// Base URL del proveedor (OpenRouter por defecto; DeepSeek: https://api.deepseek.com/v1)
+const LLM_BASE_URL = process.env.LLM_BASE_URL || 'https://openrouter.ai/api/v1';
+
 async function llamarOpenRouter(apiKey, model, systemPrompt, userPrompt) {
-  const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+  const res = await fetch(`${LLM_BASE_URL}/chat/completions`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -154,7 +168,9 @@ export async function responderPregunta(apiKey, pregunta) {
   const indice = getIndice();
   const docs = buscar(indice, pregunta);
 
-  if (docs.length === 0 || docs[0].score < 0.02) {
+  const contextoBase = leerContextoBase();
+  // Solo se renuncia sin llamar al LLM si no hay NADA que ofrecer (ni README ni chunks).
+  if (!contextoBase && docs.length === 0) {
     return {
       respuesta: 'No encuentro nada en la documentación del proyecto que responda a eso. Si quieres, pregúntaselo directamente a Jorge (el creador de Route AI): es el único que puede responder sobre lo que no está documentado.',
       fuentes: [],
@@ -162,15 +178,21 @@ export async function responderPregunta(apiKey, pregunta) {
     };
   }
 
-  const contexto = docs
-    .map((d) => `[FUENTE: ${d.fuente} — ${d.titulo}]\n${d.texto}`)
-    .join('\n\n---\n\n');
+  // Contexto: README completo (base, siempre) + chunks TF-IDF relevantes (sin duplicar README).
+  const partes = [];
+  if (contextoBase) partes.push(`[FUENTE: README.md — Visión general del proyecto]\n${contextoBase}`);
+  for (const d of docs) {
+    if (d.fuente === 'README.md') continue;
+    partes.push(`[FUENTE: ${d.fuente} — ${d.titulo}]\n${d.texto}`);
+  }
+  const contexto = partes.join('\n\n---\n\n');
 
   const systemPrompt = [
     'Eres el asistente técnico de KAVANA Route AI, una plataforma de gestión de repartos de última milla.',
     'Respondes EXCLUSIVAMENTE con la documentación real del proyecto que te doy en el contexto.',
     'Reglas:',
-    '- Responde en español, claro y directo, como explicaría el desarrollador el proyecto.',
+    '- Responde en español, claro y directo, como explicaría el desarrollador el proyecto. Máximo 120 palabras.',
+    '- NO muestres tu razonamiento ni pienses en voz alta (nada de "Okay", "let\'s see", "Looking through"). Ve directo a la respuesta.',
     '- Si el contexto contiene la respuesta, explícala con tus palabras y apóyate en los datos del contexto.',
     '- Si el contexto NO contiene la respuesta, di literalmente: "Eso no está en la documentación del proyecto. Si quieres, pregúntaselo directamente a Jorge, el creador de Route AI." y NADA más.',
     '- NUNCA inventes datos, métricas, nombres de archivos o decisiones que no estén en el contexto.',
@@ -203,7 +225,7 @@ export async function responderPregunta(apiKey, pregunta) {
 
   return {
     respuesta,
-    fuentes: [...new Set(docs.map((d) => d.fuente))],
+    fuentes: [...new Set([...(contextoBase ? ['README.md'] : []), ...docs.map((d) => d.fuente)])],
     modelo: model,
   };
 }
