@@ -78,11 +78,11 @@ export default function adminRouter(db) {
       const ahora = Date.now();
       const limite = assistantLimits.get(ip);
       if (!limite || limite.resetAt < ahora) assistantLimits.set(ip, { count: 1, resetAt: ahora + 24 * 3600 * 1000 });
-      else if (limite.count >= 25) return res.status(429).json({ error: 'Has alcanzado el límite de preguntas de hoy (25). Vuelve mañana o pregúntale directamente a Jorge.' });
+      else if (limite.count >= 15) return res.status(429).json({ error: 'Has alcanzado el límite de preguntas de hoy (15). Vuelve mañana o pregúntale directamente a Jorge.' });
       else limite.count += 1;
 
       const { responderPregunta } = await import('../services/assistantService.js');
-      const apiKey = process.env.OPENROUTER_API_KEY;
+      const apiKey = process.env.DEEPSEEK_API_KEY || process.env.OPENROUTER_API_KEY;
       if (!apiKey) return res.status(500).json({ error: 'Asistente no configurado (falta OPENROUTER_API_KEY en el servidor)' });
       const result = await responderPregunta(apiKey, question.trim());
       res.json({ success: true, ...result });

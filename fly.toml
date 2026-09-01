@@ -4,7 +4,7 @@ app = "kavana-routeai-api"
 primary_region = "cdg"
 
 [build]
-  dockerfile = "Dockerfile"
+  dockerfile = "server/Dockerfile"
 
 [env]
   NODE_ENV = "production"
@@ -18,7 +18,7 @@ primary_region = "cdg"
   force_https = true
   auto_stop_machines = "stop"
   auto_start_machines = true
-  min_machines_running = 0
+  min_machines_running = 1
   processes = ["app"]
 
   # P2 (auditoría 2026-08-23): health check HTTP real — Fly reinicia la
