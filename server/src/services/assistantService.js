@@ -127,6 +127,53 @@ function esCompleja(pregunta) {
     'arquitectura', 'diseño', 'escalabilidad', 'seguridad', 'multi-tenant',
   ];
   return senales.some((s) => q.includes(s));
+
+// ------------------------------------------------------------ saludos y respuestas naturales
+
+function detectarSaludo(pregunta) {
+  const texto = pregunta.trim().toLowerCase();
+  const saludos = ['hola', 'buenas', 'buenos días', 'buenas tardes', 'buenas noches', 'qué tal', 'que tal', 'hello', 'hi'];
+  const esSaludo = saludos.some(s => texto === s || texto.startsWith(s + ' ') || texto.endsWith(' ' + s));
+  
+  if (esSaludo) {
+    return '¡Hola! Soy el asistente técnico de KAVANA Route AI, una plataforma de gestión de repartos de última milla. Puedes preguntarme sobre:\n\n' +
+      '• **Qué es y para qué sirve** el proyecto (arquitectura, stack, problemas que resuelve)\n' +
+      '• **Cómo funciona** la asignación de rutas, el seguimiento de repartidores, la gestión de incidencias y el panel de control\n' +
+      '• **Decisiones técnicas** documentadas en ADRs (por qué Node.js, arquitectura modular, etc.)\n' +
+      '• **Cómo desplegarlo** o ejecutarlo en local (Docker, variables de entorno, CI/CD)\n' +
+      '• **Detalles de dominio** (repartidores, paradas, pedidos, incidencias, reportes)\n\n' +
+      '¿Sobre qué te gustaría saber más?';
+  }
+  return null;
+}
+
+function generarRespuestaSinResultados(pregunta) {
+  const texto = pregunta.toLowerCase();
+  
+  // Sugerencias según tipo de pregunta
+  if (texto.includes('precio') || texto.includes('coste') || texto.includes('licencia') || texto.includes('vender')) {
+    return 'Esa información no está en la documentación técnica del proyecto. KAVANA Route AI es un proyecto de portfolio/demo abierto (MIT), no un producto comercial con precios publicados.\n\n' +
+      'Puedo contarte sobre la arquitectura, el stack, cómo funciona el sistema de reparto, o cómo desplegarlo tú mismo. ¿Te interesa algún aspecto técnico?';
+  }
+  
+  if (texto.includes('jorge') || texto.includes('creador') || texto.includes('autor') || texto.includes('contacto')) {
+    return 'Jorge Adán es el arquitecto y creador de KAVANA Route AI. Las decisiones de arquitectura, producto y dominio son suyas; la IA actuó como copiloto de implementación.\n\n' +
+      'Si quieres contactar con él, su perfil está en el README del proyecto. Mientras tanto, puedo explicarte cualquier aspecto técnico del sistema de reparto de última milla. ¿Por dónde empezamos?';
+  }
+  
+  // Respuesta genérica con sugerencias basadas en lo que SÍ hay en docs
+  return 'Perdón, no tengo esa información específica en la documentación del proyecto. Pero como conozco bien KAVANA Route AI, te sugiero estas preguntas que sí puedo responder con detalle:\n\n' +
+    '• "¿Cómo funciona el algoritmo de asignación de rutas y la reoptimización en tiempo real?"\n' +
+    '• "¿Por qué usar una arquitectura modular con Node.js y Express en lugar de un monolito?"\n' +
+    '• "¿Cómo se manejan las incidencias y el seguimiento de repartidores en la Torre de Control?"\n' +
+    '• "¿Qué stack usa el frontend para el repartidor y la oficina?"\n' +
+    '• "¿Cómo se modelan paradas, pedidos y repartidores en la base de datos?"\n' +
+    '• "¿Cómo desplegar en local con Docker Compose o en producción con Fly.io?"\n\n' +
+    '¿Te gustaría que profundice en alguno de estos temas o tienes otra pregunta?';
+}
+
+// ------------------------------------------------------------ LLM (OpenRouter)
+
 }
 
 // ------------------------------------------------------------ LLM (OpenRouter)
@@ -165,6 +212,17 @@ async function llamarOpenRouter(apiKey, model, systemPrompt, userPrompt) {
 
 export async function responderPregunta(apiKey, pregunta) {
   if (!apiKey) throw new Error('API key de LLM no configurada (DEEPSEEK_API_KEY u OPENROUTER_API_KEY)');
+
+  // Detectar saludos simples para responder de forma natural sin LLM
+  const saludo = detectarSaludo(pregunta);
+  if (saludo) {
+    return {
+      respuesta: saludo,
+      fuentes: [],
+      modelo: null,
+    };
+  }
+
   const indice = getIndice();
   const docs = buscar(indice, pregunta);
 
@@ -172,7 +230,7 @@ export async function responderPregunta(apiKey, pregunta) {
   // Solo se renuncia sin llamar al LLM si no hay NADA que ofrecer (ni README ni chunks).
   if (!contextoBase && docs.length === 0) {
     return {
-      respuesta: 'No encuentro nada en la documentación del proyecto que responda a eso. Si quieres, pregúntaselo directamente a Jorge (el creador de Route AI): es el único que puede responder sobre lo que no está documentado.',
+      respuesta: generarRespuestaSinResultados(pregunta),
       fuentes: [],
       modelo: null,
     };
@@ -189,14 +247,15 @@ export async function responderPregunta(apiKey, pregunta) {
 
   const systemPrompt = [
     'Eres el asistente técnico de KAVANA Route AI, una plataforma de gestión de repartos de última milla.',
-    'Respondes EXCLUSIVAMENTE con la documentación real del proyecto que te doy en el contexto.',
+    'Tu objetivo es ayudar a usuarios (reclutadores, clientes, operarios) a entender el proyecto de forma clara y útil.',
     'Reglas:',
-    '- Responde en español, claro y directo, como explicaría el desarrollador el proyecto. Máximo 120 palabras.',
-    '- NO muestres tu razonamiento ni pienses en voz alta (nada de "Okay", "let\'s see", "Looking through"). Ve directo a la respuesta.',
-    '- Si el contexto contiene la respuesta, explícala con tus palabras y apóyate en los datos del contexto.',
-    '- Si el contexto NO contiene la respuesta, di literalmente: "Eso no está en la documentación del proyecto. Si quieres, pregúntaselo directamente a Jorge, el creador de Route AI." y NADA más.',
-    '- NUNCA inventes datos, métricas, nombres de archivos o decisiones que no estén en el contexto.',
-    '- Solo añade la línea "Ver: [fuente1, fuente2]" al final cuando hayas respondido usando el contexto. Si no has usado el contexto, no añadas ninguna fuente.',
+    '- Responde en español, claro y directo, como explicaría el desarrollador el proyecto.',
+    '- Si el contexto contiene información relevante, úsala para responder con tus palabras y apóyate en los datos.',
+    '- Si el contexto NO contiene información específica sobre la pregunta, pero puedes inferir algo razonable del contexto general del proyecto, hazlo y sé transparente sobre los límites.',
+    '- Si realmente no tienes nada que decir basado en lo que conoces del proyecto, di: "Perdón, no tengo esa información en la documentación del proyecto. Pero puedo ayudarte con otras preguntas sobre cómo funciona KAVANA Route AI, su arquitectura, o cómo desplegarlo. ¿Te gustaría que intente con otra pregunta?"',
+    '- NUNCA inventes datos, métricas, nombres de archivos o decisiones que no estén en el contexto o que no puedan inferirse razonablemente.',
+    '- Siempre termina tus respuestas útiles con una invitación a hacer más preguntas: "¿Te gustaría saber más sobre algún aspecto específico?"',
+    '- Solo añade la línea "Ver: [fuente1, fuente2]" al final cuando hayas respondido usando el contexto directamente. Si inferiste o no usaste contexto, no añadas fuentes.',
   ].join('\n');
 
   const userPrompt = [
