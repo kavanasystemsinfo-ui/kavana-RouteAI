@@ -9,7 +9,7 @@ Actualizado: Julio 2026.
 
 ## 1. Optimización de Rutas: 2-opt vs IA
 
-**ADR:** [`docs/adr/001-reemplazo-ia-por-2opt.md`](./docs/adr/001-reemplazo-ia-por-2opt.md)
+**ADR:** [`docs/adr/006-reemplazo-ia-por-2opt.md`](./docs/adr/006-reemplazo-ia-por-2opt.md)
 
 ### Decisión
 Se reemplazó la dependencia de OpenRouter (IA) para la optimización de rutas y se implementó un algoritmo **2-opt** (búsqueda local) desde cero.
@@ -277,3 +277,20 @@ Selector de periodo arriba de la Torre de Control (Mes actual por defecto, Mes a
 - 2-opt: tests con invariantes, benchmark y determinismo
 
 **Limitaciones documentadas**: PINs sin hash (prioridad MVP), JWT en localStorage (SPA cross-origin sin BFF).
+
+---
+
+## 14. Coste cero: modelo gratuito en el asistente (2026-09-17)
+
+**ADR:** [`docs/adr/008-coste-cero-modelo-gratuito-asistente.md`](./docs/adr/008-coste-cero-modelo-gratuito-asistente.md)
+
+### Decisión
+El único uso de IA que queda en el proyecto (el asistente técnico que responde sobre la documentación del repositorio) usa la **variante gratuita** `nvidia/nemotron-3-super-120b-a12b:free` por defecto, con `LLM_BASE_URL` apuntando a OpenRouter. Los dos valores son configurables por variable de entorno.
+
+### Por qué
+La optimización de rutas ya se resolvió sin IA (2-opt, ADR-006) y la geocodificación usa servicios gratuitos (ADR-002). Pagar por pregunta en una demo personal no aporta nada: el asistente responde sobre un corpus de documentación y la recuperación ya es gratis (TF-IDF en memoria, sin embeddings).
+
+### Consecuencias
+- Coste de IA del proyecto: **0 €**.
+- Límites asumidos: cuota diaria del proveedor gratuito, disponibilidad variable y prompts que pueden registrarse (no usar la demo con datos personales).
+- La comprobación de este punto es sobre el código y las variables del servicio de Render; el backend de producción vive en Fly.io (ADR-005), fuera de esta revisión.

@@ -51,12 +51,28 @@ La optimización de rutas usa un **algoritmo 2-opt local**: determinista, instan
 
 | Decisión | Alternativas | Elegida | Por qué |
 |----------|-------------|---------|---------|
-| Optimización | IA (OpenRouter), greedy | **2-opt local** | Determinista, instantáneo, sin coste. La IA no mejoraba las rutas (ADR-001) |
+| Optimización | IA (OpenRouter), greedy | **2-opt local** | Determinista, instantáneo, sin coste. La IA no mejoraba las rutas (ADR-006) |
 | App del repartidor | Nativa (React Native) | **Web responsive** | Sin store, actualización instantánea. ADR-001 evaluó PWA (con service worker) pero hoy no está implementado |
 | Geocodificación | Google Maps API | **Nominatim + fallbacks** | Gratuito, ~80% acierto, suficiente para el MVP (ADR-002) |
 | Kilometraje | Input numérico rígido | **Texto con coma/punto** | Los teclados móviles españoles usan coma; 3 decimales (ADR-003) |
 | Costes | — | **Por tipo de combustible** | El supervisor asigna el tipo de combustible a cada repartidor (diésel, gasolina, híbrido, eléctrico); el coste se calcula con el precio de ese tipo (ADR-004) |
 | Infraestructura | VPS, Docker, Render | **Fly.io + GitHub Pages** | Máquina 256MB con volumen persistente para PODs/fotos, auto-stop sin suspender (ADR-005). Migrado de Render free, que suspendía el servicio al agotar horas |
+| IA del asistente | Modelo de pago | **Variante gratuita de OpenRouter** | Coste 0 y suficiente para responder sobre la documentación del repositorio (ADR-008) |
+
+---
+
+## 💰 Cómo está construido y cómo lo construiría con presupuesto
+
+KAVANA Route AI está construido para costar **0 €/mes** y servir a **un solo usuario real: su autor**. Cada punto lleva al lado qué cambiaría con usuarios reales y presupuesto; el detalle con alternativas está en el [ADR-008](docs/adr/008-coste-cero-modelo-gratuito-asistente.md) y en el [ADR-006](docs/adr/006-reemplazo-ia-por-2opt.md).
+
+- **Optimización de rutas:** algoritmo **2-opt local**, determinista y sin coste. Se evaluó hacerlo con IA y se retiró porque no mejoraba las rutas (ADR-006). Con usuarios reales: el mismo algoritmo, y solo si aparecen restricciones duras (ventanas de tiempo, capacidades) un solver dedicado, no un modelo de lenguaje.
+- **Asistente técnico:** recuperación por **TF-IDF en memoria** (sin embeddings ni base vectorial) y **modelo gratuito** de OpenRouter por defecto. Con usuarios reales: modelo de pago con SLA y modelo de respaldo.
+- **Geocodificación:** Nominatim y servicios gratuitos con fallbacks (~80 % de acierto, suficiente para una demo). Con usuarios reales: proveedor de pago con cuota y SLA, o datos propios de direcciones.
+- **Infraestructura:** Fly.io con máquina de 256 MB y volumen persistente para las fotos, y frontends en GitHub Pages con auto-despliegue. Con usuarios reales: instancias dedicadas, almacenamiento de objetos y copias gestionadas.
+- **Demo y datos:** datos simulados de empresa viva, inmutables para el visitante (ADR-007), y límite de peticiones por IP en el asistente. Con usuarios reales: datos reales aislados por cliente, auditoría y borrado garantizado.
+- **Secretos y operación:** variables de entorno del proveedor, sin observabilidad externa. Con usuarios reales: gestor de secretos con rotación, métricas, alertas y guardia.
+
+Lo que **no** cambia entre los dos escenarios es lo que se evalúa aquí: criterio para **quitar** complejidad cuando no aporta (la IA fuera de la optimización), decisiones documentadas con alternativas, tests del servidor, blindaje de la demo probado y un frontend del repartidor pensado para móvil en la calle.
 
 ---
 

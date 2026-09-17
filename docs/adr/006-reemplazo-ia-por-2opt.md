@@ -1,4 +1,9 @@
-# ADR-001: Reemplazo de IA por algoritmo 2-opt en optimización de rutas
+# ADR-006: Reemplazo de IA por algoritmo 2-opt en optimización de rutas
+
+> Nota de numeración (2026-09-17): este documento se numeró internamente como
+> ADR-001 al escribirse, cuando aún no existía el índice de ADRs, y quedó
+> duplicado con `001-pwa-vs-native.md`. El número correcto, y el que usa el
+> índice y el README, es **ADR-006**.
 
 **Estado:** ✅ Implementado  
 **Fecha:** Julio 2026  
