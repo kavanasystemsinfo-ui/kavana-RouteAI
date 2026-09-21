@@ -7,7 +7,15 @@ const MATERIAL_KEYWORDS = [
   'bultos', 'cajas', 'palet', 'palets', 'paquetes', 'caja', 'bulto'
 ];
 
-const TABLE_SYMBOLS = ['|', '[', ']', '{', '}', '\\\\', ';', '~', '°', '_'];
+const TABLE_SYMBOLS = ['|', '[', ']', '{', '}', '\\\\\\\\', ';', '~', '°', '_'];
+
+// Palabras que NUNCA son parte de una dirección (excepciones a MATERIAL_KEYWORDS)
+// ej: "Calle de los Bultos" → no borrar "Bultos"
+const ADDRESS_EXCEPTIONS = [
+  'calle', 'avenida', 'plaza', 'paseo', 'ronda', 'travesía', 'glorieta',
+  'pasaje', 'calleja', 'carretera', 'autovía', 'autopista', 'urbanización',
+  'polígono', 'poligono', 'paseo', 'barrio', 'distrito', 'zona'
+];
 
 // Patrones de direcciones españolas
 const ADDRESS_PATTERNS = [
@@ -56,9 +64,10 @@ export function cleanAddress(raw) {
     text = text.split(sym).join(' ');
   }
 
-  // 2. Quitar palabras clave de material (case-insensitive).
+  // 2. Quitar palabras clave de material (case-insensitive) — PERO preservar si parecen parte de una dirección.
   for (const kw of MATERIAL_KEYWORDS) {
-    const re = new RegExp(`\\b${kw}\\b`, 'gi');
+    // Solo borrar si NO está precedido de palabras de dirección (ej: "Calle de los Bultos")
+    const re = new RegExp(`(?<!\\b(?:${ADDRESS_EXCEPTIONS.join('|')})\\s+)${kw}\\b`, 'gi');
     text = text.replace(re, '');
   }
 
@@ -67,7 +76,7 @@ export function cleanAddress(raw) {
     .replace(/\s{2,}/g, ' ')
     .replace(/\s+([.,])/g, '$1')
     .replace(/([.,])\s*$/g, '')
-    .replace(/^\s*[:\\-–]\s*/g, '')
+    .replace(/^\s*[:\\\-–]\s*/g, '')
     .trim();
 
   // 4. Validar que es una dirección real (contiene calle/av/etc + número)

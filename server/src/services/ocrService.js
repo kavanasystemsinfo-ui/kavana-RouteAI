@@ -5,6 +5,18 @@
 
 import { cleanAddress } from './addressCleaner.js';
 import fs from 'fs';
+import PDFDocument from 'pdfkit';
+import path from 'path';
+import { fileURLToPath } from 'url';
+import { recordOcr } from '../metrics.js';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+import { PODS_DIR } from '../storage.js';
+
+function ensureDir(dir) {
+  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+}
 
 // OCR en imágenes (Tesseract online)
 async function runTesseract(imagePath) {
@@ -91,22 +103,30 @@ const ITEM_LINE_PATTERNS = [
   /(\d+)\s*x\s+(.+)/i,
   // "Cajas de vino ..... 3" (cantidad al final)
   /(.+?)\s*[.]{2,}\s*(\d+)/i,
-  // "3 Cajas de vino" (cantidad al inicio, luego nombre sin números)
-  /^(\d{1,4})\s+([A-ZÁÉÍÓÚÑ][A-Za-záéíóúñÁÉÍÓÚÑ\s]{2,})$/m,
-  // "Cajas de vino   3" (nombre + espacios + cantidad)
-  /^(.+?)\s{2,}(\d{1,4})$/m,
   // Tabla de albarán: "Nº CODIGO PRODUCTO ... CANT" → extraer código + nombre + cantidad
   // Ej: "1  VIN-001  Vino tinto crianza Rioja 75cl    6    8,50 EUR    51,00 EUR"
-  /^\d+\s+([A-Z]{2,5}-\d{2,5})\s+(.+?)\s{2,}(\d{1,4})\s/i,
+  /^\d+\s+([A-Z]{2,5}-\d{2,5})\s+(.+?)\s{2,}(\d{1,4})\s?/i,
   // Variante sin código: "1  Vino tinto crianza Rioja 75cl    6  ..."
-  /^\d+\s+([A-ZÁÉÍÓÚÑ][A-Za-záéíóúñÁÉÍÓÚÑ][\w\sáéíóúñÁÉÍÓÚÑ()%+\-.]{3,}?)\s{2,}(\d{1,4})\s/i,
+  /^\d+\s+([A-Za-zÁÉÍÓÚÑáéíóúñ][\w\sáéíóúñÁÉÍÓÚÑ()%+\-.\/]{3,}?)\s{2,}(\d{1,4})\s?/i,
+  // "Packs de yogures ...... 20" o "Packs de yogures 20"
+  /^(.+?)\s*[.]{2,}\s*(\d{1,4})/i,
+  // Tabla con pipes: "| 3 | Cajas de vino | 6€ | 18€ |"
+  /^\|\s*\d+\s*\|\s*([^|]+)\s*\|/i,
+  // "3 Cajas de vino" (cantidad al inicio, luego nombre - flexible)
+  /^(\d{1,4})\s+([A-Za-zÁÉÍÓÚÑáéíóúñ][A-Za-záéíóúñ0-9\s()%+\-.\/]{2,})$/m,
+  // "Cajas de vino   3" (nombre + espacios + cantidad)
+  /^(.+?)\s{2,}(\d{1,4})$/m,
+  // Formato simple: "Producto cantidad" (ej: "Cajas de pan 3", "Botellas de agua 24")
+  /^([A-Za-zÁÉÍÓÚÑáéíóúñ][A-Za-záéíóúñ0-9\s()%+\-.\/]{2,}?)\s+(\d{1,4})\s*$/m,
+  // Formato con "de": "Cajas de vino 6", "Botellas de agua 24"
+  /^([A-Za-zÁÉÍÓÚÑáéíóúñ][A-Za-záéíóúñ0-9\s()%+\-.\/]{2,}?)\s+de\s+(\w+)\s+(\d{1,4})/i,
 ];
 
 // Palabras que indican fin de la sección de items
 const STOP_KEYWORDS = [
   'total', 'subtotal', 'iva', 'importe', 'firma', 'recibí', 'entregado',
   'observaciones', 'notas', 'cliente', 'dirección', 'fecha', 'albarán',
-  'nº', 'teléfono', 'contacto'
+  'nº', 'teléfono', 'contacto', 'productos', 'artículos', 'items'
 ];
 
 function isStopLine(line) {
@@ -114,7 +134,7 @@ function isStopLine(line) {
   return STOP_KEYWORDS.some(kw => lower.startsWith(kw));
 }
 
-function extractItemsFromText(rawText) {
+export function extractItemsFromText(rawText) {
   if (!rawText) return [];
   
   const lines = rawText.split('\n').map(l => l.trim()).filter(l => l.length > 0);
@@ -127,28 +147,43 @@ function extractItemsFromText(rawText) {
       const match = line.match(pattern);
       if (match) {
         let qty, name;
-        if (pattern.source.includes('x')) {
+        const src = pattern.source;
+        if (src.includes('x')) {
           // "3 x Cajas" o "3x Cajas" → qty=3, name="Cajas"
           qty = parseInt(match[1], 10);
           name = match[2].trim();
-        } else if (pattern.source.includes('[.]{2,}')) {
-          // "Cajas ..... 3" → name="Cajas", qty=3
-          name = match[1].trim();
-          qty = parseInt(match[2], 10);
-        } else if (pattern.source.startsWith('^(\\\\d{1,4})')) {
+        } else if (src.startsWith('^(\\d{1,4})') && src.includes('[A-Za-zÁÉÍÓÚÑáéíóúñ]')) {
           // "3 Cajas de vino" → qty=3, name="Cajas de vino"
           qty = parseInt(match[1], 10);
           name = match[2].trim();
-        } else if (pattern.source.includes('{2,5}-\\\\d{2,5}')) {
+        } else if (src.includes('{2,5}-\\d{2,5}')) {
           // Tabla con código: "1 VIN-001 Producto   6 ..." → name=match[2], qty=match[3]
           name = match[2].trim();
           qty = parseInt(match[3], 10);
-        } else if (pattern.source.includes('[\\\\w\\\\sáéíóúñÁÉÍÓÚÑ()%+\\\\-.]{3,}?')) {
+        } else if (src.includes('|')) {
+          // Tabla con pipes: "| 3 | Cajas de vino | 6€ | 18€ |" → name=match[1], qty from first group
+          name = match[1].trim();
+          // Extraer cantidad del inicio de la línea (antes del primer pipe)
+          const qtyMatch = line.match(/^\|\s*(\d+)\s*\|/);
+          qty = qtyMatch ? parseInt(qtyMatch[1], 10) : 1;
+        } else if (src.includes('[\w\sáéíóúñÁÉÍÓÚÑ()%+\-.]{3,}?')) {
           // Tabla sin código: "1 Producto   6 ..." → name=match[1], qty=match[2]
           name = match[1].trim();
           qty = parseInt(match[2], 10);
+        } else if (src.startsWith('^(.+?)') && src.includes('\\s{2,}\\d{1,4}')) {
+          // "Cajas de vino   3" o "Packs de yogures ...... 20" → name=match[1], qty=match[2]
+          name = match[1].trim();
+          qty = parseInt(match[2], 10);
+        } else if (src.startsWith('^([A-Za-zÁÉÍÓÚÑáéíóúñ]')) {
+          // "Producto cantidad" → name=match[1], qty=match[2]
+          name = match[1].trim();
+          qty = parseInt(match[2], 10);
+        } else if (src.includes('de')) {
+          // "Cajas de vino 6" → name=match[1], qty=match[3]
+          name = match[1].trim();
+          qty = parseInt(match[3], 10);
         } else {
-          // "Cajas de vino   3" → name="Cajas de vino", qty=3
+          // Fallback
           name = match[1].trim();
           qty = parseInt(match[2], 10);
         }
@@ -195,5 +230,77 @@ export async function processManifestImage(imagePath, isPdf = false, isCsv = fal
   
   const address = cleanAddress(raw);
   const items = extractItemsFromText(raw);
+  
+  // Record OCR metrics
+  const hasText = raw && raw.trim().length > 0;
+  recordOcr(items.length, true, hasText);
+  
   return { address, raw, items };
 }
+
+// Generación de POD (Proof of Delivery) en PDF con firma y geolocalización.
+// Usa pdfkit. Devuelve la ruta del archivo generado.
+
+import { recordPod } from '../metrics.js';
+
+// stop: { id, address, receiver_name, status }
+// signature: dataURL ("data:image/png;base64,....")
+// geo: { lat, lng } opcional
+export async function generatePOD(stop, signature, geo = null) {
+  ensureDir(PODS_DIR);
+  const fileName = `pod_${stop.id}_${Date.now()}.pdf`;
+  const filePath = path.join(PODS_DIR, fileName);
+  const doc = new PDFDocument({ margin: 50 });
+  const stream = fs.createWriteStream(filePath);
+  doc.pipe(stream);
+
+  doc.fontSize(20).text('KAVANA Route AI', { align: 'center' });
+  doc.fontSize(12).text('Proof of Delivery (POD)', { align: 'center' });
+  doc.moveDown();
+  doc.text(`Parada #${stop.id}`);
+  doc.text(`Direccion: ${stop.address || 'N/A'}`);
+  doc.text(`Receptor: ${stop.receiver_name || 'No especificado'}`);
+  // Fecha real de la entrega: usa created_at de la parada (historico),
+  // con fallback a ahora si la parada no tiene fecha.
+  const fechaEntrega = stop.created_at ? new Date(stop.created_at) : new Date();
+  doc.text(`Fecha: ${fechaEntrega.toLocaleString('es-ES')}`);
+
+  // Items entregados (bultos)
+  let items = [];
+  try { items = JSON.parse(stop.items || '[]'); } catch {}
+  const delivered = items.filter(i => i.checked);
+  if (delivered.length > 0) {
+    doc.moveDown(0.5);
+    doc.text('Bultos entregados:');
+    for (const item of delivered) {
+      doc.text(`  ${item.qty}x ${item.name}`);
+    }
+  }
+
+  if (geo && geo.lat && geo.lng) {
+    doc.text(`Geolocalización: ${geo.lat.toFixed(5)}, ${geo.lng.toFixed(5)}`);
+  }
+  doc.moveDown();
+
+  if (signature && signature.startsWith('data:image')) {
+    const base64 = signature.split(',')[1];
+    const imgBuffer = Buffer.from(base64, 'base64');
+    doc.text('Firma del receptor:');
+    doc.image(imgBuffer, { fit: [250, 120] });
+  } else {
+    doc.text('Firma: (no disponible)');
+  }
+
+  doc.end();
+  await new Promise((resolve, reject) => {
+    stream.on('finish', resolve);
+    stream.on('error', reject);
+  });
+  
+  // Record POD generation metric
+  recordPod(true);
+  
+  return filePath;
+}
+
+export default { generatePOD, extractItemsFromText, processManifestImage };

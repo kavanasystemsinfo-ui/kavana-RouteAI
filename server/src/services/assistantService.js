@@ -127,6 +127,7 @@ function esCompleja(pregunta) {
     'arquitectura', 'diseño', 'escalabilidad', 'seguridad', 'multi-tenant',
   ];
   return senales.some((s) => q.includes(s));
+}
 
 // ------------------------------------------------------------ saludos y respuestas naturales
 
@@ -170,10 +171,6 @@ function generarRespuestaSinResultados(pregunta) {
     '• "¿Cómo se modelan paradas, pedidos y repartidores en la base de datos?"\n' +
     '• "¿Cómo desplegar en local con Docker Compose o en producción con Fly.io?"\n\n' +
     '¿Te gustaría que profundice en alguno de estos temas o tienes otra pregunta?';
-}
-
-// ------------------------------------------------------------ LLM (OpenRouter)
-
 }
 
 // ------------------------------------------------------------ LLM (OpenRouter)

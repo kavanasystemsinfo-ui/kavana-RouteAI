@@ -9,13 +9,14 @@ export const API_BASE = (import.meta.env.VITE_API_BASE)
     ? '/api'
     : (() => { throw new Error('VITE_API_BASE no configurada en el build de la PWA'); })();
 
-// Prefijo del header construido por partes para evitar literales escaneables.
-const AUTH_PREF = 'Bea'.concat('rer ');
-
-// fetch autenticado: inyecta el JWT desde localStorage.
+// fetch autenticado: usa cookie httpOnly (credenciales incluidas automáticamente).
+// El token ya no se guarda en localStorage; el navegador envía la cookie httpOnly.
 export function driverAuthFetch(url, opts = {}) {
-  const token = localStorage.getItem('routeai_driver_token');
-  const headers = { ...(opts.headers || {}) };
-  if (token) headers.Authorization = AUTH_PREF + token;
-  return fetch(url, { ...opts, headers });
+  return fetch(url, {
+    ...opts,
+    credentials: 'include', // envía cookie httpOnly automáticamente
+    headers: {
+      ...(opts.headers || {}),
+    },
+  });
 }

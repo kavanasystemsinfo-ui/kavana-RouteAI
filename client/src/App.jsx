@@ -2,15 +2,12 @@ import { useState, useEffect } from 'react';
 import {
   MapPin,
   Camera,
-  Navigation,
   CheckCircle2,
   Clock,
-  ChevronRight,
   User,
   ClipboardList,
   Bell,
   Check,
-  RefreshCcw,
   Plus,
   Trash2,
   Download
@@ -18,6 +15,7 @@ import {
 import { AnimatePresence, motion } from 'framer-motion';
 import Scanner from './components/Scanner';
 import SignaturePad from './components/SignaturePad';
+import MapView from './components/MapView';
 import { downloadPod, generatePodBlob } from './services/podService';
 import IncidentModal from './components/IncidentModal';
 import ItemsModal from './components/ItemsModal';
@@ -167,10 +165,6 @@ function App() {
     handleDriverLogin, handleDriverLogout, confirmKmInitial, confirmKmFinal,
   } = session;
 
-  const [mapZoom, setMapZoom] = useState(15);
-
-  // Origen de salida configurable (no GPS en vivo): el repartidor lo fija
-  // cuando recibe el albarán, aunque sea el día antes. Persiste en localStorage.
   const [originText, setOriginText] = useState(() => localStorage.getItem('routeai_origin') || '');
   const [optimizing, setOptimizing] = useState(false);
 
@@ -467,33 +461,12 @@ function App() {
             </div>
 
             <div style={styles.mapSection}>
-              <div style={{...styles.mapBox, backgroundColor: '#000'}}>
-                <iframe 
-                  key={`${activeStop.address}-${mapZoom}`}
-                  width="100%" 
-                  height="100%" 
-                  style={{ border: 0, filter: 'invert(90%) hue-rotate(180deg) brightness(0.8) contrast(1.1)', opacity: 0.9 }} 
-                  loading="lazy" 
-                  src={`https://maps.google.com/maps?q=${encodeURIComponent(activeStop.address)}&t=&z=${mapZoom}&ie=UTF8&iwloc=&output=embed`}
-                ></iframe>
-                
-                {/* CONTROLES DE ZOOM TÁCTICOS */}
-                <div style={{position: 'absolute', right: '16px', bottom: '60px', display: 'flex', flexDirection: 'column', gap: '8px'}}>
-                  <button onClick={() => setMapZoom(prev => Math.min(prev + 1, 20))} style={{width: '36px', height: '36px', borderRadius: '50%', backgroundColor: '#222', border: '1px solid #444', color: '#fff', fontWeight: 'bold', fontSize: '18px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center'}}>+</button>
-                  <button onClick={() => setMapZoom(prev => Math.max(prev - 1, 1))} style={{width: '36px', height: '36px', borderRadius: '50%', backgroundColor: '#222', border: '1px solid #444', color: '#fff', fontWeight: 'bold', fontSize: '18px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center'}}>-</button>
-                  <button onClick={() => setMapZoom(15)} style={{width: '36px', height: '36px', borderRadius: '50%', backgroundColor: '#f8cd00', border: 'none', color: '#000', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer'}}>
-                    <RefreshCcw style={{width: '16px'}} />
-                  </button>
-                </div>
-
-                <div style={{position: 'absolute', bottom: '16px', left: '16px', backgroundColor: 'rgba(0,0,0,0.85)', padding: '8px 16px', borderRadius: '20px', border: '1px solid #f8cd0033', display: 'flex', alignItems: 'center', gap: '8px', backdropFilter: 'blur(5px)', pointerEvents: 'none'}}>
-                  <Clock style={{color: '#f8cd00', width: '12px'}} />
-                  <span style={{fontSize: '10px', fontWeight: '900', letterSpacing: '1px'}}>ZOOM: {mapZoom}x</span>
-                </div>
-              </div>
-              <button style={styles.btnPrimary} onClick={handleNavigate}>
-                INICIAR NAVEGACIÓN <ChevronRight style={{width: '20px'}} />
-              </button>
+              <MapView
+                address={activeStop.address}
+                zoom={mapZoom}
+                height={220}
+                onNavigate={handleNavigate}
+              />
             </div>
 
             <div style={styles.checklist}>
