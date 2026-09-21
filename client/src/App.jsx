@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense, lazy } from 'react';
 import {
   MapPin,
   Camera,
@@ -23,6 +23,10 @@ import ItemsModal from './components/ItemsModal';
 // de sesión extraídos a módulos propios; App.jsx queda como capa de vista.
 import { API_BASE, driverAuthFetch } from './services/api';
 import { useDriverSession } from './hooks/useDriverSession';
+
+// Lazy-loaded tabs (code-split)
+const HistoryTab = lazy(() => import('./tabs/HistoryTab'));
+const ListTab = lazy(() => import('./tabs/ListTab'));
 
 const styles = {
   container: {
@@ -508,119 +512,37 @@ function App() {
         )}
 
         {podUrl && (
-          <div style={{padding: '0 24px 24px'}}>
-            <a href={podUrl} target="_blank" rel="noreferrer" style={{...styles.btnPrimary, width: '100%', justifyContent: 'center', marginTop: '12px', backgroundColor: '#f8cd00', color: '#000', textDecoration: 'none'}}>
-               DESCARGAR POD (FIRMA) <Download style={{width: '20px'}} />
-            </a>
-          </div>
-        )}
+                  <div style={{padding: '0 24px 24px'}}>
+                    <a href={podUrl} target="_blank" rel="noreferrer" style={{...styles.btnPrimary, width: '100%', justifyContent: 'center', marginTop: '12px', backgroundColor: '#f8cd00', color: '#000', textDecoration: 'none'}}>
+                       DESCARGAR POD (FIRMA) <Download style={{width: '20px'}} />
+                    </a>
+                  </div>
+                )}
 
-        {activeTab === 'list' && (
-           <div style={{padding: '24px'}} className="animate-fade">
-              {/* ORIGEN DE SALIDA + OPTIMIZAR */}
-              <div style={{backgroundColor: '#111', border: '1px solid #222', borderRadius: '16px', padding: '16px', marginBottom: '20px'}}>
-                <div style={{...styles.stopLabel, marginBottom: '10px'}}>ORIGEN DE SALIDA</div>
-                <div style={{display: 'flex', gap: '8px'}}>
-                  <input
-                    value={originText}
-                    onChange={handleOriginChange}
-                    placeholder="Ej: Almacén Kavana, Valencia"
-                    style={{flex: 1, padding: '12px 14px', backgroundColor: '#000', border: '1px solid #333', borderRadius: '10px', color: '#fff', fontSize: '13px', fontWeight: '700', outline: 'none'}}
-                  />
-                  <button
-                    onClick={openOriginPicker}
-                    title="Buscar en el mapa"
-                    style={{backgroundColor: '#222', border: '1px solid #333', borderRadius: '10px', color: '#f8cd00', padding: '0 14px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center'}}
-                  >
-                    <Navigation size={18} />
-                  </button>
-                </div>
-                <button
-                  onClick={handleOptimize}
-                  disabled={optimizing}
-                  style={{...styles.btnPrimary, marginTop: '12px', backgroundColor: optimizing ? '#663300' : '#f8cd00', fontSize: '13px', padding: '14px'}}
-                >
-                  {optimizing ? 'OPTIMIZANDO...' : 'OPTIMIZAR RUTA'}
-                </button>
-              </div>
+                {activeTab === 'list' && (
+                  <Suspense fallback={<div style={{padding: '24px'}} className="animate-fade">Cargando lista…</div>}>
+                    <ListTab
+                      stops={stops}
+                      driverId={driverId}
+                      originText={originText}
+                      setOriginText={setOriginText}
+                      optimizing={optimizing}
+                      setOptimizing={setOptimizing}
+                      handleOptimize={handleOptimize}
+                      handleDeleteStop={handleDeleteStop}
+                      handleClearRoute={handleClearRoute}
+                      openOriginPicker={openOriginPicker}
+                      handleOriginChange={handleOriginChange}
+                    />
+                  </Suspense>
+                )}
 
-              <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px'}}>
-                <div style={styles.stopLabel}>LISTA DE PARADAS</div>
-                <div style={{display: 'flex', gap: '8px'}}>
-                  {stops.length > 0 && (
-                    <button 
-                      onClick={handleClearRoute}
-                      style={{backgroundColor: '#ff444420', color: '#ff4444', border: '1px solid #ff444444', padding: '6px 12px', borderRadius: '8px', fontSize: '10px', fontWeight: '900', display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer'}}
-                    >
-                      <Trash2 size={12} /> BORRAR
-                    </button>
-                  )}
-                </div>
-              </div>
-              {stops.length === 0 ? (
-                <div style={{textAlign: 'center', padding: '40px 20px', color: '#444'}}>
-                   <ClipboardList size={48} style={{marginBottom: '16px', opacity: 0.2}} />
-                   <div style={{fontSize: '14px', fontWeight: '800'}}>No hay paradas cargadas</div>
-                   <div style={{fontSize: '11px', marginTop: '8px'}}>Escanea un albarán para empezar</div>
-                </div>
-              ) : (
-                stops.map(s => (
-                  <div key={s.id} style={{...styles.checkItem, justifyContent: 'space-between'}}>
-                     <div style={{display: 'flex', gap: '15px', alignItems: 'center'}}>
-                        <div style={{color: '#f8cd00', fontWeight: '900', fontSize: '20px'}}>#{s.stop_number}</div>
-                        <div style={{fontSize: '13px', fontWeight: '800'}}>{s.address}</div>
-                     </div>
-                     <button 
-                        onClick={() => handleDeleteStop(s.id)}
-                        style={{background: 'none', border: 'none', color: '#444', cursor: 'pointer', padding: '5px'}}
-                     >
-                        <Trash2 size={16} />
-                     </button>
-                  </div>
-                ))
-              )}
-           </div>
-        )}
-        {activeTab === 'history' && (
-          <div style={{padding: '24px'}} className="animate-fade">
-            <div style={{...styles.stopLabel, marginBottom: '16px'}}>ENTREGAS COMPLETADAS</div>
-            {stops.filter(s => s.status === 'delivered').length === 0 ? (
-              <div style={{textAlign: 'center', padding: '40px 20px', color: '#444'}}>
-                <CheckCircle2 size={48} style={{marginBottom: '16px', opacity: 0.2}} />
-                <div style={{fontSize: '14px', fontWeight: '800'}}>Sin entregas completadas</div>
-                <div style={{fontSize: '11px', marginTop: '8px'}}>Las entregas realizadas aparecerán aquí</div>
-              </div>
-            ) : (
-              <>
-                <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#111', border: '1px solid #222', borderRadius: 12, padding: '14px 16px', marginBottom: '16px'}}>
-                  <div>
-                    <div style={{fontSize: '10px', color: '#666', fontWeight: 900, letterSpacing: '1px'}}>COMPLETADAS</div>
-                    <div style={{fontSize: '24px', fontWeight: 900, color: '#22c55e'}}>{stops.filter(s => s.status === 'delivered').length}</div>
-                  </div>
-                  <div style={{textAlign: 'right'}}>
-                    <div style={{fontSize: '10px', color: '#666', fontWeight: 900, letterSpacing: '1px'}}>TOTAL</div>
-                    <div style={{fontSize: '24px', fontWeight: 900, color: '#fff'}}>{stops.length}</div>
-                  </div>
-                </div>
-                {stops.filter(s => s.status === 'delivered').sort((a, b) => (b.updated_at || b.created_at || '').localeCompare(a.updated_at || a.created_at || '')).map(s => (
-                  <div key={s.id} style={{...styles.checkItem, opacity: 0.7}}>
-                    <div style={{...styles.checkIcon, backgroundColor: '#22c55e'}}>
-                      <Check size={14} style={{color: '#000'}} />
-                    </div>
-                    <div style={{flex: 1}}>
-                      <div style={{fontSize: '13px', fontWeight: '800', color: '#fff'}}>{s.address}</div>
-                      <div style={{fontSize: '10px', color: '#666', marginTop: '2px'}}>
-                        {s.receiver_name ? `Recibido por: ${s.receiver_name}` : 'Sin nombre'}
-                        {(s.updated_at || s.created_at) && ` · ${(s.updated_at || s.created_at).slice(0, 10)}`}
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </>
-            )}
-          </div>
-        )}
-      </main>
+                {activeTab === 'history' && (
+                  <Suspense fallback={<div style={{padding: '24px'}} className="animate-fade">Cargando historial…</div>}>
+                    <HistoryTab stops={stops} />
+                  </Suspense>
+                )}
+              </main>
 
       <nav style={styles.nav}>
         <button onClick={() => setActiveTab('map')} style={{...styles.navItem, color: activeTab === 'map' ? '#f8cd00' : '#444', background: 'none', border: 'none', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px'}}>

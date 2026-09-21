@@ -38,12 +38,6 @@ export default function authRouter(db) {
   router.post('/drivers/login', async (req, res) => {
     try {
       const { pin } = req.body;
-      // P0: los PINs se guardan hasheados con scrypt,
-      // así que NO se puede filtrar por pin en SQL — se cargan SOLO los
-      // drivers activos (filtro en BD, antes se
-      // listaba la tabla entera) y se verifica con scrypt+salt por fila
-      // (timing-safe). verifyPin acepta también PIN legacy plano durante la
-      // ventana de despliegue, antes de aplicar la migración 004.
       const drivers = await q.listActiveDrivers(db);
       const d = drivers.find((x) => verifyPin(pin, x.pin));
       if (!d) {
@@ -54,7 +48,7 @@ export default function authRouter(db) {
       const token = signToken({ role: 'driver', driverId: d.id });
       setTokenCookie(res, token);
       recordAuth('pin', true);
-      res.json({ success: true, driver: { id: d.id, name: d.name } });
+      res.json({ success: true, driver: { id: d.id, name: d.name }, token });
     } catch (error) { res.status(500).json({ error: error.message }); }
   });
 
@@ -71,7 +65,7 @@ export default function authRouter(db) {
       const token = signToken({ role: 'office' });
       setTokenCookie(res, token);
       recordAuth('office', true);
-      res.json({ success: true });
+      res.json({ success: true, token });
     } catch (error) { res.status(500).json({ error: error.message }); }
   });
 

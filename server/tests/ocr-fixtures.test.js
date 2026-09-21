@@ -43,7 +43,8 @@ test('OCR: fixtures anonimizados - dirección y bultos', async () => {
   const results = [];
   
   for (const fixture of ocrFixtures) {
-    const result = await processManifestImage(fixture.input, false, false);
+    // Usar rawTextOverride para pasar el texto directo sin intentar abrirlo como archivo
+    const result = await processManifestImage('', false, false, fixture.input);
     
     const addressOk = addressesMatch(result.address || '', fixture.expected.address);
     const itemsOk = itemsMatch(fixture.expected.items, result.items || []);

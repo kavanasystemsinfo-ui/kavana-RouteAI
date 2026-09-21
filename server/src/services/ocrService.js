@@ -206,10 +206,13 @@ export function extractItemsFromText(rawText) {
 
 // ── End V2 items extraction ──────────────────────────────────────────
 
-export async function processManifestImage(imagePath, isPdf = false, isCsv = false) {
+export async function processManifestImage(imagePath, isPdf = false, isCsv = false, rawTextOverride = null) {
   let raw = '';
   
-  if (isCsv) {
+  // Si se pasa texto directo (para tests), úsalo
+  if (rawTextOverride !== null) {
+    raw = rawTextOverride;
+  } else if (isCsv) {
     raw = extractCsvText(imagePath);
   } else if (isPdf) {
     raw = await extractPdfText(imagePath);
