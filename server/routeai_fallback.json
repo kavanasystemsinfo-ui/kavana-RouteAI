@@ -352,6 +352,19 @@
       "is_demo": true,
       "session_id": "",
       "expira_en": null
+    },
+    {
+      "id": 28,
+      "name": "Raúl Giménez",
+      "pin": "scrypt$8c85b16e238aca2a73301b7542e841db$17d7f2566ad78b372f2b19397d9ae0676a67c8d4603c50cd8805474d83825c47",
+      "phone": "",
+      "email": "",
+      "active": true,
+      "fuel_type": "",
+      "cost_per_km": 0,
+      "is_demo": true,
+      "session_id": "",
+      "expira_en": null
     }
   ],
   "settings": {
