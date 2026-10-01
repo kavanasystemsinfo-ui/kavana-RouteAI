@@ -11,6 +11,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import pg from 'pg';
 import { hashPin } from './pinHash.js';
+import { recordDb } from './metrics.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -72,14 +73,25 @@ async function initPgSchema(pool) {
 const pgQueries = {
   // Readiness check: SELECT 1 barato para /ready.
   ping: async (pool) => {
+    const start = process.hrtime.bigint();
     await pool.query('SELECT 1');
+    recordDb('ping', Number(process.hrtime.bigint() - start) / 1e6, true);
   },
   // Ownership check en BD, no full-scan en JS.
   getStopOwned: async (pool, stopId, driverId) => {
+    const start = process.hrtime.bigint();
     const res = await pool.query('SELECT * FROM stops WHERE id = $1 LIMIT 1', [stopId]);
     const stop = res.rows[0] || null;
+    recordDb('getStopOwned', Number(process.hrtime.bigint() - start) / 1e6, !!stop);
     if (!stop) return { found: false, owned: false, stop: null };
     return { found: true, owned: String(stop.driver_id) === String(driverId), stop };
+  },
+  // Lookup simple por PK para esStopDemo y otros usos que solo necesitan la parada.
+  getStop: async (pool, stopId) => {
+    const start = process.hrtime.bigint();
+    const res = await pool.query('SELECT * FROM stops WHERE id = $1 LIMIT 1', [stopId]);
+    recordDb('getStop', Number(process.hrtime.bigint() - start) / 1e6, !!res.rows[0]);
+    return res.rows[0] || null;
   },
   listStops: async (pool, filters = {}) => {
     let sql = 'SELECT * FROM stops WHERE 1=1';
@@ -99,10 +111,16 @@ const pgQueries = {
     return res.rows;
   },
   addStop: async (pool, stopNumber, address, status = 'pending', driverId = null, items = '', extra = {}) => {
+    // Propagar is_demo desde driver a parada para lookup O(1) en esStopDemo
+    let isDemo = false;
+    if (driverId) {
+      const driverRes = await pool.query('SELECT is_demo FROM drivers WHERE id = $1', [driverId]);
+      if (driverRes.rows[0]?.is_demo) isDemo = true;
+    }
     const res = await pool.query(
-      `INSERT INTO stops (stop_number, address, status, driver_id, items, session_id, expira_en)
-       VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING id`,
-      [stopNumber, address, status, driverId, items, extra.session_id || '', extra.expira_en || null]
+      `INSERT INTO stops (stop_number, address, status, driver_id, items, session_id, expira_en, is_demo)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING id`,
+      [stopNumber, address, status, driverId, items, extra.session_id || '', extra.expira_en || null, isDemo]
     );
     return res.rows[0].id;
   },
@@ -320,6 +338,10 @@ const jsonQueries = {
     if (!stop) return { found: false, owned: false, stop: null };
     return { found: true, owned: String(stop.driver_id) === String(driverId), stop };
   },
+  // Lookup simple por PK para esStopDemo y otros usos.
+  getStop: (db, stopId) => {
+    return db._store.stops.find((s) => String(s.id) === String(stopId)) || null;
+  },
   listStops: (db, filters = {}) => {
     let stops = db._store.stops.slice();
     if (filters.driver_id !== undefined) stops = stops.filter((s) => s.driver_id === filters.driver_id);
@@ -335,8 +357,14 @@ const jsonQueries = {
   },
   addStop: (db, stopNumber, address, status = 'pending', driverId = null, items = '', extra = {}) => {
     const id = db.nextStopId();
+    // Propagar is_demo desde driver a parada para lookup O(1)
+    let isDemo = false;
+    if (driverId) {
+      const driver = db._store.drivers.find((d) => d.id === driverId);
+      if (driver?.is_demo) isDemo = true;
+    }
     db._store.stops.push({ id, stop_number: stopNumber, address, status, driver_id: driverId, items, created_at: new Date().toISOString(),
-      session_id: extra.session_id || '', expira_en: extra.expira_en || null });
+      session_id: extra.session_id || '', expira_en: extra.expira_en || null, is_demo: isDemo });
     db._save(); return id;
   },
   updateStop: (db, id, fields) => {

@@ -7,5 +7,17 @@ export default defineConfig({
   plugins: [react()],
   server: {
     host: true
-  }
+  },
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          'vendor-react': ['react', 'react-dom'],
+          'vendor-ui': ['lucide-react', 'framer-motion'],
+          'vendor-pdf': ['jspdf', 'html2canvas'],
+          'vendor-map': ['leaflet'],
+        },
+      },
+    },
+  },
 });

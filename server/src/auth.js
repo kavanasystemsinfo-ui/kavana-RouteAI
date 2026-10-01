@@ -63,7 +63,7 @@ export function verifyToken(token, secret = getSecret()) {
   return payload;
 }
 
-// Extrae el token del header Authorization: Bearer <token>.
+// Extrae el token del header Authorization: Bearer *** o de la cookie httpOnly
 // P1: eliminado el soporte ?token= en query string.
 // Ningún cliente lo usa ya (los PODs se descargan con fetch + blob) y los
 // tokens en URLs se filtran por logs de proxy e historial del navegador.
@@ -73,7 +73,8 @@ export function extractToken(req) {
     const m = /^Bearer\s+(.+)$/i.exec(auth.trim());
     if (m) return m[1];
   }
-  return null;
+  // Leer de cookie httpOnly (rf_token)
+  return req.cookies?.rf_token || null;
 }
 
 // Middleware: exige JWT válido con uno de los roles indicados.

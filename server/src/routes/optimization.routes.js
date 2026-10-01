@@ -3,6 +3,7 @@ import express from 'express';
 import { requireAuth } from '../auth.js';
 import { geocodeAddress } from '../services/geocode.js';
 import { optimizeRoute } from '../services/routeOptimizer.js';
+import { recordOptimization, recordDb } from '../metrics.js';
 
 export default function optimizationRouter(db) {
   const q = db.queries;
@@ -47,11 +48,14 @@ export default function optimizationRouter(db) {
       }
       const unlocated = geoStops.filter((s) => s.lat === null);
       const located = geoStops.filter((s) => s.lat !== null);
+      const startOptimize = process.hrtime.bigint();
       let route;
       if (located.length === 0) route = geoStops;
       else if (located.length === 1) route = geoStops;
       else if (unlocated.length > 0) route = [...optimizeRoute(located, originCoords), ...unlocated];
       else route = optimizeRoute(located, originCoords);
+      const optimizeDuration = Number(process.hrtime.bigint() - startOptimize) / 1e6;
+      recordOptimization(located.length, optimizeDuration, true);
 
       // Blindaje demo: las paradas de drivers
       // is_demo son solo lectura — /optimize no puede renumerarlas. El

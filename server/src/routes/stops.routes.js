@@ -14,13 +14,10 @@ export default function stopsRouter(db) {
   const q = db.queries;
   const router = express.Router();
 
+  // esStopDemo O(1) usando columna is_demo en stops (migración 006)
   async function esStopDemo(stopId) {
-    const stops = await q.listStops(db);
-    const stop = stops.find((s) => String(s.id) === String(stopId));
-    if (!stop) return false;
-    const drivers = await q.listDrivers(db);
-    const driver = drivers.find((d) => d.id === stop.driver_id);
-    return !!(driver && driver.is_demo);
+    const stop = await q.getStop(db, stopId);
+    return stop?.is_demo === true;
   }
 
   const absoluteUrl = (req, relPath) => {

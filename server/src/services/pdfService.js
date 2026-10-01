@@ -55,11 +55,9 @@ export async function generatePOD(stop, signature, geo = null) {
 
   if (signature && signature.startsWith('data:image')) {
     const base64 = signature.split(',')[1];
-    const imgPath = path.join(PODS_DIR, `sig_${stop.id}_${Date.now()}.png`);
-    fs.writeFileSync(imgPath, Buffer.from(base64, 'base64'));
+    const imgBuffer = Buffer.from(base64, 'base64');
     doc.text('Firma del receptor:');
-    doc.image(imgPath, { fit: [250, 120] });
-    fs.unlinkSync(imgPath);
+    doc.image(imgBuffer, { fit: [250, 120] });
   } else {
     doc.text('Firma: (no disponible)');
   }

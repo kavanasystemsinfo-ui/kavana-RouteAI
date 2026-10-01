@@ -5,15 +5,18 @@ const API_BASE = (import.meta.env && import.meta.env.VITE_API_BASE)
   ? `${import.meta.env.VITE_API_BASE.replace(/\/$/, '')}/api`
   : `http://${window.location.hostname}:5001/api`;
 
-const AUTH_PREF='Bea'.concat('rer ');
-
+// fetch autenticado: usa cookie httpOnly (credenciales incluidas automáticamente).
 export function authFetch(url, opts = {}) {
-  const token = sessionStorage.getItem('rf_office_token');
-  const headers = { ...(opts.headers || {}) };
-  if (token) headers.Authorization = AUTH_PREF.concat(token);
-  return fetch(url, { ...opts, headers }).then((res) => {
+  return fetch(url, {
+    ...opts,
+    credentials: 'include', // envía cookie httpOnly automáticamente
+    headers: {
+      ...(opts.headers || {}),
+    },
+  }).then((res) => {
+    // Token inválido/expirado (p.ej. deploy con JWT_SECRET regenerado):
+    // limpiar sesión y volver al login en vez de romper el panel con un objeto de error.
     if (res.status === 401) {
-      sessionStorage.removeItem('rf_office_token');
       window.dispatchEvent(new Event('auth:unauthorized'));
     }
     return res;
@@ -33,14 +36,24 @@ export function getSessionId() {
 export function useAuth() {
   const [logged, setLogged] = useState(false);
   const [pin, setPin] = useState('');
-  const [token, setToken] = useState(() => sessionStorage.getItem('rf_office_token') || '');
 
   useEffect(() => {
-    if (token) setLogged(true);
-  }, [token]);
+    // Verificar si hay sesión válida al cargar
+    checkAuth();
+  }, []);
+
+  const checkAuth = async () => {
+    try {
+      const res = await authFetch(`${API_BASE}/drivers`);
+      if (res.ok) setLogged(true);
+      else setLogged(false);
+    } catch {
+      setLogged(false);
+    }
+  };
 
   useEffect(() => {
-    const onUnauthorized = () => { setToken(''); setLogged(false); };
+    const onUnauthorized = () => { setLogged(false); };
     window.addEventListener('auth:unauthorized', onUnauthorized);
     return () => window.removeEventListener('auth:unauthorized', onUnauthorized);
   }, []);
@@ -48,23 +61,21 @@ export function useAuth() {
   const login = async (e) => {
     e.preventDefault();
     const res = await fetch(`${API_BASE}/office/login`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ pin })
     });
     if (res.ok) {
-      const data = await res.json();
-      sessionStorage.setItem('rf_office_token', data.token);
-      setToken(data.token);
       setLogged(true);
       setPin('');
     } else alert('PIN incorrecto');
   };
 
-  const logout = () => {
-    sessionStorage.removeItem('rf_office_token');
-    setToken('');
+  const logout = async () => {
+    await fetch(`${API_BASE}/logout`, { method: 'POST', credentials: 'include' });
     setLogged(false);
   };
 
-  return { logged, pin, setPin, token, login, logout };
+  return { logged, pin, setPin, login, logout };
 }

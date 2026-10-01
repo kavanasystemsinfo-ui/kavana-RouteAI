@@ -1,8 +1,12 @@
 // Servidor Express KAVANA Route AI.
 import express from 'express';
+import helmet from 'helmet';
+import cookieParser from 'cookie-parser';
 import { initDb } from './db.js';
 import apiRouter from './routes/api.js';
 import { extractToken, verifyToken } from './auth.js';
+import { rateLimiter } from './rateLimiter.js';
+import { register, metricsMiddleware, recordAuth, recordRateLimit } from './metrics.js';
 import path from 'path';
 import { fileURLToPath, pathToFileURL } from 'url';
 import fs from 'fs';
@@ -13,10 +17,32 @@ import { PODS_DIR, INCIDENTS_DIR } from './storage.js';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const ALLOWED = (process.env.CORS_ORIGINS || 'https://kavanasystemsinfo-ui.github.io,https://routeai.kavanasystems.com,https://www.routeai.kavanasystems.com,https://www.kavanasystems.com').split(',').map((s) => s.trim());
+const ALLOWED_ORIGINS = (process.env.CORS_ORIGINS || 'https://kavanasystemsinfo-ui.github.io,https://routeai.kavanasystems.com,https://www.routeai.kavanasystems.com,https://www.kavanasystems.com').split(',').map((s) => s.trim());
+if (ALLOWED_ORIGINS.length === 0) {
+  throw new Error('CORS_ORIGINS debe configurarse con al menos un origen permitido');
+}
 
 export function createServer(db) {
   const app = express();
+
+  // Helmet para headers de seguridad (CSP, HSTS, X-Frame-Options, etc.)
+  app.use(helmet({
+    contentSecurityPolicy: {
+      directives: {
+        defaultSrc: ["'self'"],
+        scriptSrc: ["'self'", "'unsafe-inline'"],
+        styleSrc: ["'self'", "'unsafe-inline'"],
+        imgSrc: ["'self'", "data:", "blob:"],
+        fontSrc: ["'self'"],
+        connectSrc: ["'self'", "https://nominatim.openstreetmap.org", "https://openrouter.ai"],
+        frameSrc: ["'self'", "https://www.google.com"],
+        objectSrc: ["'none'"],
+        baseUri: ["'self'"],
+        formAction: ["'self'"],
+      },
+    },
+    crossOriginEmbedderPolicy: false, // necesario para Google Maps iframe
+  }));
 
   // Fase 1: Render está detrás de un proxy HTTPS, así
   // que confiamos en la cabecera del edge para derivar la IP real del cliente
@@ -26,7 +52,7 @@ export function createServer(db) {
   // CORS (antes de rutas)
   app.use((req, res, next) => {
     const origin = req.headers.origin;
-    if (!origin || ALLOWED.includes('*') || ALLOWED.includes(origin)) {
+    if (!origin || ALLOWED_ORIGINS.includes(origin)) {
       res.setHeader('Access-Control-Allow-Origin', origin || '*');
       res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PUT,PATCH,DELETE,OPTIONS');
       res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
@@ -36,7 +62,12 @@ export function createServer(db) {
     next();
   });
 
-  app.use(express.json({ limit: '10mb' }));
+  app.use(express.json({ limit: '10mb' }))
+  app.use(cookieParser());
+
+  // Prometheus metrics middleware
+  app.use(metricsMiddleware());
+
   // Liveness: proceso vivo, no toca dependencias (barato para el orquestador).
   app.get('/health', (req, res) => res.json({ status: 'ok' }));
   // Readiness: solo tráfico real si la BD responde. Un SELECT con timeout
@@ -50,6 +81,17 @@ export function createServer(db) {
       res.status(503).json({ status: 'not-ready', error: 'base de datos no disponible' });
     }
   });
+
+  // Prometheus metrics endpoint
+  app.get('/metrics', async (req, res) => {
+    try {
+      res.set('Content-Type', register.contentType);
+      res.end(await register.metrics());
+    } catch (e) {
+      res.status(500).end(e.message);
+    }
+  });
+
   app.use('/api', apiRouter(db));
   if (!fs.existsSync(PODS_DIR)) fs.mkdirSync(PODS_DIR, { recursive: true });
   // /pods y /incidents requieren JWT (no se sirven públicamente) y ownership:
