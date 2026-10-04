@@ -7,7 +7,7 @@
 ![Express](https://img.shields.io/badge/Express-API-lightgrey)
 ![Web](https://img.shields.io/badge/Web-Responsive-blue)
 ![OCR](https://img.shields.io/badge/OCR-Tesseract-8A2BE2)
-![Tests](https://img.shields.io/badge/Tests-75-success)
+![Tests](https://img.shields.io/badge/Tests-102-success)
 ![License](https://img.shields.io/badge/License-MIT-success)
 
 ---
