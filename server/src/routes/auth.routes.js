@@ -15,10 +15,14 @@ function pinsMatch(a, b) {
 
 // Helper para setear cookie httpOnly con el JWT
 function setTokenCookie(res, token) {
+  const isProd = process.env.NODE_ENV === 'production';
+  // SameSite=None REQUIERE Secure=true (spec). En prod siempre true; en dev false para localhost HTTP.
+  const secure = isProd || process.env.FORCE_SECURE_COOKIE === 'true';
+  const sameSite = secure ? 'none' : 'lax';
   res.cookie('rf_token', token, {
     httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
-    sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+    secure,
+    sameSite,
     maxAge: 8 * 60 * 60 * 1000, // 8h = TTL del JWT
     path: '/'
   });
