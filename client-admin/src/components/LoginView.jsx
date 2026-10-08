@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useRef } from 'react';
 
 export default function LoginView({ onLogin, pin, setPin, theme, API_BASE }) {
   const C = theme === 'clasico'
