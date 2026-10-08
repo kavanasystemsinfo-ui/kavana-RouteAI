@@ -18,7 +18,7 @@ function setTokenCookie(res, token) {
   res.cookie('rf_token', token, {
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',
-    sameSite: 'lax',
+    sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
     maxAge: 8 * 60 * 60 * 1000, // 8h = TTL del JWT
     path: '/'
   });
