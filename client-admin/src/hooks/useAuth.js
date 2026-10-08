@@ -2,20 +2,26 @@
 import { useState, useEffect } from 'react';
 
 const API_BASE = (import.meta.env && import.meta.env.VITE_API_BASE)
-  ? `${import.meta.env.VITE_API_BASE.replace(/\/$/, '')}/api`
+  ? `${import.meta.env.VITE_API_BASE.replace(/\\/$/, '')}/api`
   : `http://${window.location.hostname}:5001/api`;
 
-// fetch autenticado: usa cookie httpOnly (credenciales incluidas automáticamente).
+const TOKEN_KEY = 'rf_token_memory';
+
+// fetch autenticado: usa header Authorization Bearer (más fiable cross-site que cookies).
 export function authFetch(url, opts = {}) {
+  const token = localStorage.getItem(TOKEN_KEY);
+  // DEBUG
+  console.log('[authFetch] token from storage:', token ? 'present' : 'null');
+  const headers = {
+    ...(opts.headers || {}),
+    ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+  };
+  // DEBUG
+  console.log('[authFetch] headers:', headers);
   return fetch(url, {
     ...opts,
-    credentials: 'include', // envía cookie httpOnly automáticamente
-    headers: {
-      ...(opts.headers || {}),
-    },
+    headers,
   }).then((res) => {
-    // Token inválido/expirado (p.ej. deploy con JWT_SECRET regenerado):
-    // limpiar sesión y volver al login en vez de romper el panel con un objeto de error.
     if (res.status === 401) {
       window.dispatchEvent(new Event('auth:unauthorized'));
     }
@@ -38,7 +44,6 @@ export function useAuth() {
   const [pin, setPin] = useState('');
 
   useEffect(() => {
-    // Verificar si hay sesión válida al cargar
     checkAuth();
   }, []);
 
@@ -53,27 +58,35 @@ export function useAuth() {
   };
 
   useEffect(() => {
-    const onUnauthorized = () => { setLogged(false); };
+    const onUnauthorized = () => { setLogged(false); localStorage.removeItem(TOKEN_KEY); };
     window.addEventListener('auth:unauthorized', onUnauthorized);
     return () => window.removeEventListener('auth:unauthorized', onUnauthorized);
   }, []);
 
   const login = async (e) => {
     e.preventDefault();
+    console.log('[login] attempting login with pin:', pin);
     const res = await fetch(`${API_BASE}/office/login`, {
       method: 'POST',
-      credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ pin })
     });
+    console.log('[login] response status:', res.status);
     if (res.ok) {
+      const data = await res.json();
+      console.log('[login] data:', data);
+      if (data.token) {
+        console.log('[login] storing token');
+        localStorage.setItem(TOKEN_KEY, data.token);
+      }
       setLogged(true);
       setPin('');
     } else alert('PIN incorrecto');
   };
 
   const logout = async () => {
-    await fetch(`${API_BASE}/logout`, { method: 'POST', credentials: 'include' });
+    localStorage.removeItem(TOKEN_KEY);
+    await fetch(`${API_BASE}/logout`, { method: 'POST' });
     setLogged(false);
   };
 
