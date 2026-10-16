@@ -94,6 +94,14 @@ export function createServer(db) {
 
   app.use('/api', apiRouter(db));
   if (!fs.existsSync(PODS_DIR)) fs.mkdirSync(PODS_DIR, { recursive: true });
+  // Página pública de seguimiento del cliente: /t/:token la sirve la propia
+  // API (un solo dominio → sin CORS ni cookie). El token solo llega por URL.
+  const TRACK_DIR = path.join(__dirname, '../public');
+  app.get('/t/:token', (req, res) => {
+    res.setHeader('Cache-Control', 'no-store');
+    res.sendFile(path.join(TRACK_DIR, 'track.html'));
+  });
+  app.get('/t', (req, res) => res.redirect('/'));
   // /pods y /incidents requieren JWT (no se sirven públicamente) y ownership:
   // un driver solo puede leer archivos de SUS paradas. Los nombres de archivo
   // son pod_<stopId>_<ts>.pdf / incident_<stopId>_<ts>.<ext>.

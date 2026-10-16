@@ -69,6 +69,11 @@ export default function optimizationRouter(db) {
         return !real || !demoIds.has(String(real.driver_id));
       });
       for (let i = 0; i < mutableRoute.length; i++) await q.updateStop(db, mutableRoute[i].id, { stop_number: i + 1 });
+      // Persistir coordenadas geocodificadas: el tracking público calcula
+      // ETA con ellas y así no se re-geocodifica en cada consulta pública.
+      for (const s of route) {
+        if (s.lat != null && s.lng != null) await q.updateStop(db, s.id, { lat: s.lat, lng: s.lng });
+      }
       const updated = await q.listStops(db);
       // Un driver solo recibe en la respuesta SUS paradas (no las de la empresa).
       const visible = req.user.role === 'driver'

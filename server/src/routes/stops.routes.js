@@ -40,7 +40,8 @@ export default function stopsRouter(db) {
       });
       const drivers = await q.listDrivers(db);
       const demoDriverIds = new Set(drivers.filter((d) => d.is_demo).map((d) => d.id));
-      res.json(stops.map(({ signature, ...rest }) => ({ ...rest, is_demo: demoDriverIds.has(rest.driver_id) })));
+      // tracking_url: enlace público del cliente para esta parada (solo oficina).
+      res.json(stops.map(({ signature, ...rest }) => ({ ...rest, is_demo: demoDriverIds.has(rest.driver_id), tracking_token: rest.tracking_token || null })));
     } catch (error) { res.status(500).json({ error: error.message }); }
   });
 

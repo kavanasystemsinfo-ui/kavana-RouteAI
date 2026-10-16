@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Seguimiento de tu entrega — Kavana Route AI</title>
+  <meta name="robots" content="noindex">
+  <style>
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      background: #0a0a0a; color: #e5e7eb; min-height: 100vh;
+      display: flex; align-items: center; justify-content: center; padding: 24px;
+      -webkit-font-smoothing: antialiased;
+    }
+    .card {
+      background: #141414; border: 1px solid #272c36; border-radius: 16px;
+      padding: 32px 28px; max-width: 420px; width: 100%;
+    }
+    .brand { font-weight: 900; font-size: 15px; letter-spacing: 1px; color: #fff; margin-bottom: 24px; display: flex; align-items: center; gap: 8px; }
+    .brand .dot { width: 9px; height: 9px; background: #f8cd00; border-radius: 50%; display: inline-block; }
+    .status-hero { text-align: center; margin-bottom: 24px; }
+    .status-icon { font-size: 3rem; margin-bottom: 10px; }
+    .status-label { font-size: 1.45rem; font-weight: 800; }
+    .status-pending { color: #f59e0b; }
+    .status-delivered { color: #22c55e; }
+    .status-incident { color: #ef4444; }
+    .row { display: flex; justify-content: space-between; padding: 12px 0; border-bottom: 1px solid #272c36; font-size: 0.95rem; }
+    .row:last-child { border-bottom: none; }
+    .row .k { color: #8b93a1; }
+    .row .v { color: #fff; font-weight: 600; text-align: right; max-width: 60%; }
+    .eta-box {
+      background: rgba(248,205,0,0.08); border: 1px solid rgba(248,205,0,0.25);
+      border-radius: 12px; padding: 16px; text-align: center; margin-bottom: 20px;
+    }
+    .eta-box .big { font-size: 1.6rem; font-weight: 900; color: #f8cd00; }
+    .eta-box .sub { font-size: 0.82rem; color: #8b93a1; margin-top: 4px; }
+    .steps { display: flex; gap: 6px; margin: 18px 0 8px; }
+    .step { flex: 1; height: 6px; border-radius: 3px; background: #272c36; }
+    .step.done { background: #22c55e; }
+    .step.current { background: #f59e0b; }
+    .demo-note { margin-top: 20px; font-size: 0.78rem; color: #8b93a1; text-align: center; line-height: 1.5; }
+    .demo-note a { color: #f8cd00; text-decoration: none; font-weight: 600; }
+    .error-box { text-align: center; color: #ef4444; }
+    .spinner { width: 36px; height: 36px; border: 3px solid #272c36; border-top-color: #f8cd00; border-radius: 50%; animation: spin 0.8s linear infinite; margin: 0 auto 20px; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    @media (max-width: 400px) { .card { padding: 24px 18px; } }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="brand"><span class="dot"></span> KAVANA ROUTE AI</div>
+    <div id="content"><div class="spinner"></div></div>
+    <div id="demo-note" style="display:none" class="demo-note">
+      Esta entrega forma parte de una <b>demo pública de portfolio</b>.<br>
+      <a href="https://www.kavanasystems.com/routeai/" rel="noopener">Ver el proyecto completo →</a>
+    </div>
+  </div>
+  <script>
+    // Token desde la URL: /t/<token> (la API sirve esta página en /t/).
+    const token = (location.pathname.match(/t\/([0-9a-f]{24})$/) || [])[1]
+      || (location.search.match(/token=([0-9a-f]{24})/) || [])[1];
+
+    const STATUS_META = {
+      pending:   { icon: '🚚', cls: 'status-pending',   label: 'En reparto' },
+      delivered:{ icon: '✅', cls: 'status-delivered',  label: 'Entregado' },
+      incident: { icon: '⚠️', cls: 'status-incident',  label: 'Incidencia' },
+    };
+
+    async function render() {
+      const el = document.getElementById('content');
+      if (!token) {
+        el.innerHTML = '<div class="error-box">Enlace de seguimiento no válido.<br>Comprueba el enlace que te ha enviado la empresa.</div>';
+        return;
+      }
+      try {
+        const apiBase = 'https://kavana-routeai-api.fly.dev/api';
+        const res = await fetch(`${apiBase}/track/${token}`);
+        if (!res.ok) {
+          el.innerHTML = '<div class="error-box">No encontramos esta entrega.<br>El enlace puede haber caducado.</div>';
+          return;
+        }
+        const { stop } = await res.json();
+        const meta = STATUS_META[stop.status] || STATUS_META.pending;
+        const steps = stop.status === 'delivered'
+          ? '<div class="step done"></div><div class="step done"></div><div class="step done"></div>'
+          : `<div class="step done"></div><div class="step current"></div><div class="step"></div>`;
+        let eta = '';
+        if (stop.status === 'pending' && stop.eta_minutes != null) {
+          eta = `<div class="eta-box"><div class="big">~${stop.eta_minutes} min</div><div class="sub">llegada estimada${stop.pending_before ? ` · ${stop.pending_before} entrega${stop.pending_before > 1 ? 's' : ''} antes` : ''}</div></div>`;
+        } else if (stop.status === 'pending') {
+          eta = `<div class="eta-box"><div class="big">Hoy</div><div class="sub">el repartidor la tiene en ruta</div></div>`;
+        }
+        el.innerHTML = `
+          <div class="status-hero">
+            <div class="status-icon">${meta.icon}</div>
+            <div class="status-label ${meta.cls}">${meta.label}</div>
+          </div>
+          ${eta}
+          <div class="steps">${steps}</div>
+          <div class="row"><span class="k">Destino</span><span class="v">${stop.address || '—'}</span></div>
+          <div class="row"><span class="k">Parada nº</span><span class="v">#${stop.stop_number ?? '—'}</span></div>
+          ${stop.status === 'delivered' ? '<div class="row"><span class="k">Estado</span><span class="v">Firmado por el receptor</span></div>' : ''}
+        `;
+        if (stop.is_demo) document.getElementById('demo-note').style.display = 'block';
+        // Auto-refresco solo mientras está en reparto (60s).
+        if (stop.status === 'pending') setTimeout(render, 60_000);
+      } catch (e) {
+        el.innerHTML = '<div class="error-box">Error de conexión. Reintenta en unos segundos.</div>';
+      }
+    }
+    render();
+  </script>
+</body>
+</html>

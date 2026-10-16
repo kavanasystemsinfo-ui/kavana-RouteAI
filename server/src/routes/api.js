@@ -7,6 +7,7 @@ import stopsRouter from './stops.routes.js';
 import ocrRouter from './ocr.routes.js';
 import optimizationRouter from './optimization.routes.js';
 import adminRouter from './admin.routes.js';
+import trackRouter from './track.routes.js';
 
 export default function apiRouter(db) {
   const router = express.Router();
@@ -16,5 +17,8 @@ export default function apiRouter(db) {
   router.use(ocrRouter(db));
   router.use(optimizationRouter(db));
   router.use(adminRouter(db));
+  // Tracking público: MONTADO AL FINAL y sin requireAuth. La ruta es
+  // /api/track/:token con rate limit propio (ver track.routes.js).
+  router.use(trackRouter(db));
   return router;
 }

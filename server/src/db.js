@@ -9,9 +9,16 @@
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import crypto from 'crypto';
 import pg from 'pg';
 import { hashPin } from './pinHash.js';
 import { recordDb } from './metrics.js';
+
+// Token de seguimiento público: 24 chars hex, aleatorio criptográficamente.
+// Solo se usa como clave de lookup (no como secreto de autenticación).
+export function cryptoRandomToken() {
+  return crypto.randomBytes(12).toString('hex');
+}
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -117,12 +124,21 @@ const pgQueries = {
       const driverRes = await pool.query('SELECT is_demo FROM drivers WHERE id = $1', [driverId]);
       if (driverRes.rows[0]?.is_demo) isDemo = true;
     }
+    // Token público de seguimiento: cada parada nueva nace con su enlace.
+    const trackingToken = extra.tracking_token || cryptoRandomToken();
     const res = await pool.query(
-      `INSERT INTO stops (stop_number, address, status, driver_id, items, session_id, expira_en, is_demo)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING id`,
-      [stopNumber, address, status, driverId, items, extra.session_id || '', extra.expira_en || null, isDemo]
+      `INSERT INTO stops (stop_number, address, status, driver_id, items, session_id, expira_en, is_demo, tracking_token)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id, tracking_token`,
+      [stopNumber, address, status, driverId, items, extra.session_id || '', extra.expira_en || null, isDemo, trackingToken]
     );
     return res.rows[0].id;
+  },
+  // Seguimiento público: lookup por token sin exponer id interno.
+  getStopByToken: async (pool, token) => {
+    const start = process.hrtime.bigint();
+    const res = await pool.query('SELECT * FROM stops WHERE tracking_token = $1 LIMIT 1', [token]);
+    recordDb('getStopByToken', Number(process.hrtime.bigint() - start) / 1e6, !!res.rows[0]);
+    return res.rows[0] || null;
   },
   updateStop: async (pool, id, fields) => {
     // los nombres de columna NUNCA vienen del
@@ -131,6 +147,7 @@ const pgQueries = {
     const ALLOWED_STOP_COLS = new Set([
       'stop_number', 'address', 'status', 'driver_id', 'items', 'signature',
       'receiver_name', 'delivery_notes', 'session_id', 'expira_en',
+      'tracking_token', 'lat', 'lng',
     ]);
     const set = []; const params = []; let idx = 1;
     for (const [k, v] of Object.entries(fields)) {
@@ -363,9 +380,15 @@ const jsonQueries = {
       const driver = db._store.drivers.find((d) => d.id === driverId);
       if (driver?.is_demo) isDemo = true;
     }
+    // Token público de seguimiento: cada parada nueva nace con su enlace.
+    const trackingToken = extra.tracking_token || cryptoRandomToken();
     db._store.stops.push({ id, stop_number: stopNumber, address, status, driver_id: driverId, items, created_at: new Date().toISOString(),
-      session_id: extra.session_id || '', expira_en: extra.expira_en || null, is_demo: isDemo });
+      session_id: extra.session_id || '', expira_en: extra.expira_en || null, is_demo: isDemo, tracking_token: trackingToken });
     db._save(); return id;
+  },
+  // Seguimiento público: lookup por token sin exponer id interno.
+  getStopByToken: (db, token) => {
+    return db._store.stops.find((s) => s.tracking_token === token) || null;
   },
   updateStop: (db, id, fields) => {
     // Misma whitelist que el adapter PG: Object.assign
@@ -373,6 +396,7 @@ const jsonQueries = {
     const ALLOWED_STOP_COLS = new Set([
       'stop_number', 'address', 'status', 'driver_id', 'items', 'signature',
       'receiver_name', 'delivery_notes', 'session_id', 'expira_en',
+      'tracking_token', 'lat', 'lng',
     ]);
     for (const k of Object.keys(fields)) {
       if (!ALLOWED_STOP_COLS.has(k)) throw new Error(`updateStop: columna no permitida: ${k}`);
