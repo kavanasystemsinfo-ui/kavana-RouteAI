@@ -37,6 +37,7 @@ export function resetLoginLimits() { return resetRateLimiter(); }
 export default function authRouter(db) {
   const q = db.queries;
   const router = express.Router();
+  router.get('/testauth', (req, res) => res.json({ ok: true }));
 
   // Driver login (sin rate limit en demo — evita bloqueo en Render free)
   router.post('/drivers/login', async (req, res) => {
