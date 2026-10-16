@@ -20,5 +20,6 @@ export default function apiRouter(db) {
   // Tracking público: MONTADO AL FINAL y sin requireAuth. La ruta es
   // /api/track/:token con rate limit propio (ver track.routes.js).
   router.use(trackRouter(db));
+router.get('/testhi', (req, res) => res.json({ ok: true }));
   return router;
 }
