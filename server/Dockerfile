@@ -23,6 +23,8 @@ RUN npm ci --omit=dev --no-audit --no-fund
 # server/src/services -> server/src -> server -> raíz; con solo /app/src la
 # resolución sale fuera de /app y no encuentra docs/ para el corpus RAG).
 COPY server/src ./server/src
+# Página pública de seguimiento del cliente (/t/:token la sirve express).
+COPY server/public ./server/public
 # Migraciones SQL versionadas (aplicadas en arranque sobre PostgreSQL)
 COPY server/migrations ./server/migrations
 # Documentación del repo: el asistente técnico la indexa como corpus (RAG).
