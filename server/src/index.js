@@ -93,6 +93,7 @@ export function createServer(db) {
   });
 
   app.use('/api', apiRouter(db));
+app.get('/api/testhi3', (req, res) => res.json({ ok: true }));
   if (!fs.existsSync(PODS_DIR)) fs.mkdirSync(PODS_DIR, { recursive: true });
   // Página pública de seguimiento del cliente: /t/:token la sirve la propia
   // API (un solo dominio → sin CORS ni cookie). El token solo llega por URL.
