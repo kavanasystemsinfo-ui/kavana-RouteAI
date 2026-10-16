@@ -178,4 +178,3 @@ RouteAI incluye una **demo de empresa ficticia** para portfolio: 90 días de his
 ## 📄 Licencia
 
 MIT © 2026 [Jorge Adán Rodríguez](https://www.kavanasystems.com) · Kavana Systems
-# deploy-trigger 1792166325

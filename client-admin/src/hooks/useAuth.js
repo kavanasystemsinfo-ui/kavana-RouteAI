@@ -2,7 +2,7 @@
 import { useState, useEffect } from 'react';
 
 const API_BASE = (import.meta.env && import.meta.env.VITE_API_BASE)
-  ? `${import.meta.env.VITE_API_BASE.replace(/\\/$/, '')}/api`
+  ? `${import.meta.env.VITE_API_BASE.replace(/\/$/, '')}/api`
   : `http://${window.location.hostname}:5001/api`;
 
 const TOKEN_KEY = 'rf_token_memory';
